@@ -1,0 +1,43 @@
+{
+  "id": "./",
+  "name": "BRIGADE — 厨房業務アプリ",
+  "short_name": "BRIGADE",
+  "description": "在庫・発注・レシピ・仕込み・シフト・衛生記録・売上をまとめる、料理人のための厨房アプリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1a33",
+  "theme_color": "#0e1a33",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "今日モード",
+      "short_name": "今日",
+      "url": "./?today=1"
+    },
+    {
+      "name": "クイックメモ",
+      "short_name": "メモ",
+      "url": "./?memo=1"
+    }
+  ]
+}
