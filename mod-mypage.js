@@ -14,6 +14,8 @@
 @media (min-width: 1100px) { .myp-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
 .myp-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .myp-sec-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.myp-sec-head .sec-title { white-space: nowrap; }
+@media (max-width: 559px) { .myp-sec-head { flex-wrap: wrap; } .myp-seg-host { flex: 1 1 100%; } .myp-seg-host .seg { width: 100%; } .myp-seg-host .seg-btn { flex: 1 1 0; padding: 0 6px; } }
 .myp-sec-head > .ico { width: 20px; height: 20px; color: var(--accent); }
 .myp-add { display: flex; flex-direction: column; gap: 10px; }
 .myp-add-row { display: flex; gap: 8px; }
