@@ -435,9 +435,9 @@
     const body = h("div", { class: "stack" },
       K.field("品目名", name),
       h("div", { class: "grid2" }, K.field("カテゴリ", cat), K.field("保管場所", loc)),
-      h("div", { class: "grid2" }, K.field("単位", unitBox, "棚卸し・発注・レシピで共通の単位"), K.field("仕入単価（円／1単位）", cost, isNew ? null : "前回 " + K.fmt.yen(d.cost))),
+      h("div", { class: "grid2" }, K.field("単位", unitBox, [K.feature("inventory.count") ? "棚卸し" : null, K.feature("inventory.order") ? "発注" : null, "レシピ"].filter(Boolean).join("・") + "で共通の単位"), K.field("仕入単価（円／1単位）", cost, isNew ? null : "前回 " + K.fmt.yen(d.cost))),
       h("div", { class: "grid2" }, K.field("適正在庫", par, "これを下回ると「少なめ」"), K.field("現在庫", stock)),
-      K.field("仕入先", sup, K.list("suppliers").length ? null : "仕入先タブで登録すると選べます"),
+      K.field("仕入先", sup, K.list("suppliers").length || !K.feature("inventory.supplier") ? null : "仕入先タブで登録すると選べます"),
       null);
     const actions = [{ label: "キャンセル", kind: "ghost" }];
     const menu = isNew ? null : [{
@@ -608,7 +608,7 @@
             h("button", { class: "btn inv-sb inv-plus", text: "＋" + fmtQty(step), attrs: roAttr({ "aria-label": x.name + " を" + fmtQty(step) + u + "増やす" }), onClick: () => bump(x.id, 1) }))));
       }
       listBox.appendChild(box);
-      listBox.appendChild(h("p", { class: "muted small", style: "margin:0", text: "±はその場で保存されます（使用・ロス分の調整に）。直後の通知の「元に戻す」で取り消せます。品目名をタップすると編集できます。" }));
+      listBox.appendChild(h("p", { class: "muted small", style: "margin:0", text: "±はその場で保存されます（使用分" + (K.feature("inventory.waste") ? "" : "・ロス分") + "の調整に" + (K.feature("inventory.waste") ? "。捨てた分は「ロス」で記録" : "") + "）。直後の通知の「元に戻す」で取り消せます。品目名をタップすると編集できます。" }));
     }
     const allDraw = () => { if (search.value.trim() !== stockUI.q) search.value = stockUI.q; drawSum(); drawChips(); drawPanel(); drawFbtn(); drawList(); };
     live.add(allDraw);
@@ -1399,6 +1399,7 @@
       ]);
       K.on("readonly", refreshAll);
       K.on("settings", refreshAll); // カテゴリの並び・名前が変わったら描き直す
+      K.on("features", refreshAll); // 使う機能のオン・オフ（v3.4）：オフの機能への入口を描き直しで消す
     },
   });
 
@@ -1633,7 +1634,7 @@
         h("div", { class: "cell" }, h("span", { class: "lbl", text: "今月のロス" }), h("span", { class: "val", text: K.fmt.yen(amt(month)) }), h("span", { class: "sub", text: month.length + "件" })));
       box.textContent = "";
       if (!all.length) {
-        box.appendChild(K.empty("ロス・廃棄の記録はまだありません", "期限切れや調理ミスで捨てた食材を記録すると、在庫から差し引かれ、今日・今月のロス金額がここに出ます。クイックメモからも回せます。", "ロスを記録", () => openWaste(null)));
+        box.appendChild(K.empty("ロス・廃棄の記録はまだありません", "期限切れや調理ミスで捨てた食材を記録すると、在庫から差し引かれ、今日・今月のロス金額がここに出ます。" + (K.feature("memo") ? "クイックメモからも回せます。" : ""), "ロスを記録", () => openWaste(null)));
         return;
       }
       const ul = h("div", { class: "list inv-wlist" });
@@ -1662,7 +1663,7 @@
     const f = ev.filter;
     const sf = typeof f === "string" ? f : f && f.stock;
     if (sf === "short" || sf === "bad") { stockUI.state = sf; stockUI.cat = ""; stockUI.q = ""; }
-    if (f === "draft" || (f && typeof f === "object" && f.order === "draft")) { ordUI.status = "draft"; ordUI.recLimit = 10; }
+    if (K.feature("inventory.order") && (f === "draft" || (f && typeof f === "object" && f.order === "draft"))) { ordUI.status = "draft"; ordUI.recLimit = 10; }
     refreshAll();
   });
   // 0時を越えたら「今日」を更新（棚卸し日が前日の今日のままで未入力なら新しい今日へ）

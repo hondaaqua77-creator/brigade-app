@@ -354,6 +354,36 @@ input, select, textarea { scroll-margin-bottom: 140px; scroll-margin-top: 120px;
 .busy-card .btn { min-width: 220px; }
 @media (max-width: 360px) { .logo-text { display: none; } }
 
+/* ===== 使う機能（統括） ===== */
+.feat-entry { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; }
+.feat-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.feat-txt b { font-size: 15px; }
+.feat-txt span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.feat-txt .feat-req { align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; margin-top: 2px; }
+.feat-label { font-weight: 700; font-size: 14px; }
+.feat-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 700px) { .feat-presets { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.feat-preset { min-height: 60px; text-align: left; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); cursor: pointer; display: flex; flex-direction: column; gap: 2px; font: inherit; }
+.feat-preset b { font-size: 14px; }
+.feat-preset span { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.feat-preset.is-on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.feat-sum { margin: 0; }
+.feat-groups { display: flex; flex-direction: column; gap: 10px; }
+.feat-group { border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.feat-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; min-height: 56px; border-top: 1px solid var(--line); }
+.feat-row:first-child { border-top: 0; }
+.feat-row.is-top { background: var(--bg); }
+.feat-row:not(.is-top) { padding-left: 24px; }
+.feat-row.is-off .feat-txt b { color: var(--muted); }
+.feat-group.is-off .feat-row:not(.is-top) { opacity: .5; }
+.feat-sw { flex: none; position: relative; width: 52px; height: 32px; border-radius: 16px; border: 0; background: #c3cad6; cursor: pointer; padding: 0; margin: 6px 0; }
+.feat-sw::after { content: ""; position: absolute; inset: -6px; } /* タップ領域 44px 以上 */
+.feat-sw .feat-knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; }
+.feat-sw.is-on { background: var(--ok); }
+.feat-sw.is-on .feat-knob { left: 23px; }
+.feat-sw:disabled { opacity: .5; cursor: default; }
+.subtabs[hidden] { display: none !important; }
+
 /* ===== カテゴリ編集（統括） ===== */
 .cat-ed-list { display: flex; flex-direction: column; gap: 6px; }
 .cat-ed-row { display: flex; align-items: center; gap: 6px; }
@@ -484,12 +514,12 @@ body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 <div id="toasts" aria-live="polite"></div>
 <div id="sheets"></div>
 
-<script src="core.js?v=206b135370"></script>
-<script src="mod-sales.js?v=206b135370"></script>
-<script src="mod-inventory.js?v=206b135370"></script>
-<script src="mod-recipe.js?v=206b135370"></script>
-<script src="mod-shift.js?v=206b135370"></script>
-<script src="mod-mypage.js?v=206b135370"></script>
+<script src="core.js?v=879024bf6c"></script>
+<script src="mod-sales.js?v=879024bf6c"></script>
+<script src="mod-inventory.js?v=879024bf6c"></script>
+<script src="mod-recipe.js?v=879024bf6c"></script>
+<script src="mod-shift.js?v=879024bf6c"></script>
+<script src="mod-mypage.js?v=879024bf6c"></script>
 <script>
 /* ===== 独立アプリ（PWA）：オフライン起動・更新通知・ホーム画面への追加案内 — 統括 ===== */
 (function () {

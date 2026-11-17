@@ -271,6 +271,8 @@
   const inRange = (d, from, to) => !!d && d >= from && d <= to;
   const datesIn = (from, to) => { const out = []; for (let d = from; d <= to; d = K.addDays(d, 1)) out.push(d); return out; };
   const ro = () => K.readOnly();
+  /* 使う機能（v3.4）：オフの機能への入口は出さない。core が古い場合は全部オン扱い */
+  const F = (key) => (typeof K.feature === "function" ? K.feature(key) : true);
   /* 記録の担当者名：名簿にない id は「（削除済み）」、退職は「名前（退職）」 */
   const nm = (id) => {
     if (!id) return "未選択";
@@ -1040,7 +1042,11 @@
     const grid = h("div", { class: "sal-cal-grid " + (mode === "month" ? "is-month" : "is-week"), role: "grid", "aria-label": label + " のカレンダー" },
       DOW_MON.map((w, i) => h("div", { class: "sal-cal-dow" + (i === 5 ? " sat" : i === 6 ? " sun" : ""), role: "columnheader", text: w })));
     for (let d = from; d <= to; d = K.addDays(d, 1)) {
-      const mk = marks(d);
+      const mk = Object.assign({}, marks(d));
+      if (!F("shift.shift")) mk.staff = 0;
+      if (!F("inventory.order")) mk.deliv = [];
+      if (!F("inventory.count")) mk.count = null;
+      if (!F("sales")) { mk.sale = null; mk.missing = false; }
       const dow = (K.daysBetween(K.weekStart(d), d));
       const out = mode === "month" && d.slice(0, 7) !== curMonth;
       const parts = [];
@@ -1083,9 +1089,9 @@
     });
 
     const legend = h("div", { class: "sal-cal-legend" },
-      h("span", {}, calMark("user", null), "出勤"), h("span", {}, calMark("cart", null, "info"), "納品予定"),
-      h("span", {}, calMark("clip", null), "棚卸し"), h("span", {}, calMark("check", null, "ok"), "売上入力済み"),
-      h("span", {}, h("span", { class: "sal-cm warn" }, h("i", { class: "sal-dotw" })), "売上未入力"),
+      F("shift.shift") ? h("span", {}, calMark("user", null), "出勤") : null, F("inventory.order") ? h("span", {}, calMark("cart", null, "info"), "納品予定") : null,
+      F("inventory.count") ? h("span", {}, calMark("clip", null), "棚卸し") : null, F("sales") ? h("span", {}, calMark("check", null, "ok"), "売上入力済み") : null,
+      F("sales") ? h("span", {}, h("span", { class: "sal-cm warn" }, h("i", { class: "sal-dotw" })), "売上未入力") : null,
       h("span", {}, h("i", { class: "sal-evdot accent" }), "予約・団体"), h("span", {}, h("i", { class: "sal-evdot info" }), "業者・点検"),
       h("span", {}, h("i", { class: "sal-evdot muted" }), "その他の予定"), h("span", {}, h("span", { class: "sal-cal-closed" , text: "休" }), "定休日・臨時休業"),
       h("span", {}, h("span", { class: "sal-mine" }, K.icon("pin")), "自分だけ"));
@@ -1143,24 +1149,24 @@
       saleVal = mk2.missing ? h("span", { class: "chip warn", text: "未入力" }) : h("span", { class: "sal-dl-sub", text: mk2.closed ? "休業日" : d === today ? "まだ入力されていません" : "記録なし" });
       saleAct = h("button", { class: "btn sm", type: "button", disabled: ro(), attrs: writeAttrs, onClick: () => openSalesSheet(d) }, K.icon("plus"), "入力");
     }
-    rows.push(line("chart", "売上", saleVal, { action: saleAct }));
-    if (d >= today) {
+    if (F("sales")) rows.push(line("chart", "売上", saleVal, { action: saleAct }));
+    if (d >= today && F("sales")) {
       const fc = salesForecast({ date: d });
       if (fc.covers) rows.push(line("user", "予測客数", [h("span", { class: "num", text: fc.covers + "名" }),
         h("span", { class: "sal-dl-sub", text: fc.reserved ? "（うち予約" + fc.reserved + "名）" : "（" + fc.basis + "）" })]));
     }
     // 出勤
     const ppl = new Set(shifts.map((x) => x.e.staffId || x.e.id)).size;
-    rows.push(line("user", "出勤",
+    if (F("shift.shift")) rows.push(line("user", "出勤",
       shifts.length ? h("span", { class: "num", text: ppl + "名" + (ppl !== shifts.length ? "・" + shifts.length + "枠" : "") }) : h("span", { class: "sal-dl-sub", text: "予定なし" }),
       shifts.length ? { toggle: () => { dpOpen.shift = !dpOpen.shift; redraw(); }, open: dpOpen.shift } : {}));
-    if (shifts.length && dpOpen.shift) rows.push(h("div", { class: "sal-dl-body" }, shiftRows(shifts)));
+    if (F("shift.shift") && shifts.length && dpOpen.shift) rows.push(h("div", { class: "sal-dl-body" }, shiftRows(shifts)));
     // 納品予定
     const dl = mk2.deliv;
-    rows.push(line("cart", "納品予定",
+    if (F("inventory.order")) rows.push(line("cart", "納品予定",
       dl.length ? h("span", { class: "num", text: dl.length + "件・" + K.fmt.yen(dl.reduce((a, o) => a + n0(o.total), 0)) }) : h("span", { class: "sal-dl-sub", text: "なし" }),
       dl.length ? { toggle: () => { dpOpen.deliv = !dpOpen.deliv; redraw(); }, open: dpOpen.deliv } : {}));
-    if (dl.length && dpOpen.deliv) rows.push(h("div", { class: "sal-dl-body" }, h("div", { class: "list" }, dl.map((o) =>
+    if (F("inventory.order") && dl.length && dpOpen.deliv) rows.push(h("div", { class: "sal-dl-body" }, h("div", { class: "list" }, dl.map((o) =>
       h("button", { class: "li", type: "button", onClick: () => K.go("inventory", "order") },
         h("span", { class: "sal-li-main" }, h("span", { class: "sal-li-title", text: sups(o.supplierId) }),
           h("span", { class: "sal-li-sub", text: (o.lines || []).length + "品目" })),
@@ -1168,7 +1174,7 @@
         h("span", { class: "sal-chev" }, K.icon("chev")))))));
     // 棚卸し（ある日だけ）
     const cnt = mk2.count;
-    if (cnt) rows.push(line("clip", "棚卸し", [h("span", { class: "chip " + (cnt.done ? "ok" : "warn"), text: cnt.done ? "確定済み" : "途中" }),
+    if (cnt && F("inventory.count")) rows.push(line("clip", "棚卸し", [h("span", { class: "chip " + (cnt.done ? "ok" : "warn"), text: cnt.done ? "確定済み" : "途中" }),
       cnt.total != null ? h("span", { class: "sal-dl-sub num", text: " " + K.fmt.yen(cnt.total) }) : null]));
 
     const panel = h("section", { class: "card sal-dp", "aria-label": K.fmt.date(d) + " の詳細" },
@@ -1189,10 +1195,10 @@
     const notes = K.list("notes");
     /* 担当者を選んでいるとき：その人が未確認／未選択のとき：誰も確認していない緊急（連絡画面と同じ定義） */
     const urgent = notes.filter((n) => n.priority === "urgent" && (cur ? !(n.readBy || []).includes(cur) : !(n.readBy || []).length));
-    if (urgent.length) add("bad", "bell", "未確認の緊急連絡 " + urgent.length + "件",
+    if (urgent.length && F("shift.notes")) add("bad", "bell", "未確認の緊急連絡 " + urgent.length + "件",
       cur ? nm(cur) + " さんがまだ確認していません" : "まだ誰も確認していません", () => K.go("shift", "notes", { filter: "unread" }));
     /* 衛生記録（担当C の hygiene.status。未登録なら何も出さない） */
-    const hs = typeof K.ask === "function" ? K.ask("hygiene.status", { date: today }) : null;
+    const hs = F("shift.hygiene") && typeof K.ask === "function" ? K.ask("hygiene.status", { date: today }) : null;
     if (hs) {
       const ab = hs.abnormal || [], ms = hs.missing || [];
       if (ab.length) add("bad", "alert", "温度の異常 " + ab.length + "件",
@@ -1202,19 +1208,19 @@
     }
     const items = K.list("items");
     const low = items.filter((it) => n0(it.par) > 0 && n0(it.stock) < n0(it.par) * 0.5);
-    if (low.length) add("bad", "box", "在庫不足 " + low.length + "品目",
+    if (low.length && F("inventory")) add("bad", "box", "在庫不足 " + low.length + "品目",
       low.slice(0, 3).map((x) => x.name).join("・") + (low.length > 3 ? " ほか" : "") + "（適正在庫の半分未満）", () => K.go("inventory", "stock", { filter: "bad" }));
     /* 仕込みの残り（担当B の prep.status）。半分以上・3件以上残っているときだけ */
-    const ps = typeof K.ask === "function" ? K.ask("prep.status", { date: today }) : null;
+    const ps = F("recipe.prep") && typeof K.ask === "function" ? K.ask("prep.status", { date: today }) : null;
     if (ps && n0(ps.total) > 0) {
       const left = n0(ps.total) - n0(ps.done);
       if (left >= 3 && left / n0(ps.total) >= 0.5) add("warn", "knife", "仕込みの残り " + left + " / " + ps.total + "件",
         (ps.lines || []).filter((l) => !l.done).slice(0, 3).map((l) => l.name).join("・") + (left > 3 ? " ほか" : ""), () => K.go("recipe", "prep"));
     }
     const drafts = K.list("orders").filter((o) => o.status === "draft");
-    if (drafts.length) add("warn", "cart", "下書きのままの発注書 " + drafts.length + "件", "送信しないと仕入先に届きません", () => K.go("inventory", "order", { filter: "draft" }));
-    if (!salesRec(yday) && !sharedClosed(yday)) add("warn", "chart", "昨日（" + K.fmt.date(yday) + "）の売上が未入力", "定休日でなければ入力してください", () => openSalesSheet(yday));
-    if (items.length) {
+    if (drafts.length && F("inventory.order")) add("warn", "cart", "下書きのままの発注書 " + drafts.length + "件", "送信しないと仕入先に届きません", () => K.go("inventory", "order", { filter: "draft" }));
+    if (F("sales") && !salesRec(yday) && !sharedClosed(yday)) add("warn", "chart", "昨日（" + K.fmt.date(yday) + "）の売上が未入力", "定休日でなければ入力してください", () => openSalesSheet(yday));
+    if (items.length && F("inventory.count")) {
       const doneDates = K.list("counts").filter((c) => c.done && c.date).map((c) => c.date).sort();
       const last = doneDates[doneDates.length - 1];
       if (!last) add("info", "clip", "棚卸しの記録がまだありません", "棚卸しをすると原価と在庫金額が正確になります", () => K.go("inventory", "count"));
@@ -1223,7 +1229,7 @@
         if (gap >= 7) add("info", "clip", "棚卸しから " + gap + "日経過", "最終：" + K.fmt.date(last), () => K.go("inventory", "count"));
       }
     }
-    if (memoCount > 0 && (typeof K.routeMemo === "function" || typeof K.openMemos === "function")) {
+    if (F("memo") && memoCount > 0 && (typeof K.routeMemo === "function" || typeof K.openMemos === "function")) {
       const openMemos = typeof K.memos === "function" ? K.memos().filter((m) => !m.done).sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || ""))) : [];
       const oldest = openMemos[0];
       const snip = oldest ? String(oldest.text || oldest.tag || "").split(/\r?\n/)[0].slice(0, 24) : "";
@@ -1272,15 +1278,15 @@
     }
     const mS = stats(monthStart(today), today);
     const wS = stats(K.weekStart(today), today);
-    const secK = h("section", { class: "sal-sec sal-o2", "aria-label": "数字" }, secHead("数字", h("button", { class: "btn ghost sm", onClick: () => K.go("sales", "analysis") }, "分析を見る", K.icon("chev"))),
+    const secK = h("section", { class: "sal-sec sal-o2", "aria-label": "数字" }, secHead("数字", F("sales.analysis") ? h("button", { class: "btn ghost sm", onClick: () => K.go("sales", "analysis") }, "分析を見る", K.icon("chev")) : null),
       h("div", { class: "sal-kpis" },
         kpi("昨日の売上", yTot == null ? null : K.fmt.yen(yTot), ySub, yChip),
         kpi("今月の累計売上", mS.days ? K.fmt.yen(mS.total) : null, mS.days ? mS.days + "日分入力済み" : "売上を入力すると表示"),
         costKpi("今月", mS.fc, mS.days, set.targetFoodCost),
-        kpi("今週の人件費率", K.fmt.pct(wS.laborRate),
+        F("shift.shift") ? kpi("今週の人件費率", K.fmt.pct(wS.laborRate),
           wS.laborRate != null ? laborNote(wS) + "・目標 " + K.fmt.pct(set.targetLabor)
             : !wS.days ? "今週の売上を入力すると表示" : "シフトと時給を入力すると表示",
-          rateChip(wS.laborRate, set.targetLabor))));
+          rateChip(wS.laborRate, set.targetLabor)) : null));
 
     /* 出勤はカレンダーの日パネルに統合（初期選択＝今日） */
     const latest = K.list("notes").slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || ""))).slice(0, 3);
@@ -1309,7 +1315,7 @@
 
     root.appendChild(h("div", { class: "sal-dash" },
       h("div", { class: "sal-dcol" }, calHost),
-      h("div", { class: "sal-dcol" }, secA, secK, secN, secZ)));
+      h("div", { class: "sal-dcol" }, secA, F("sales") ? secK : null, F("shift.notes") ? secN : null, F("sales.kaizen") ? secZ : null)));
   }
 
   K.register({
@@ -1323,6 +1329,7 @@
       K.on("readonly", draw);
       K.on("nav", (p) => { if (p && p.key === "home") draw(); });
       homeDraw = draw;
+      K.on("features", draw);
       /* 時刻に依存する要対応（衛生の夕など）のため、表示中は1分ごとに描き直す */
       setInterval(() => { if (!document.hidden && !root.hidden && !root.closest("[hidden]")) draw(); }, 60000);
       document.addEventListener("visibilitychange", () => { if (!document.hidden && !root.hidden) draw(); });
@@ -1556,7 +1563,7 @@
       });
     }
     // 2. 人件費率
-    if (st.laborRate != null && st.laborRate > set.targetLabor) {
+    if (F("shift.shift") && st.laborRate != null && st.laborRate > set.targetLabor) {
       const dows = dowStats().filter((d) => d.avg != null);
       const low = dows.slice().sort((a, b) => a.avg - b.avg)[0];
       hints.push({
@@ -1575,7 +1582,7 @@
       bySup[o.supplierId || "?"] = (bySup[o.supplierId || "?"] || 0) + n0(o.total);
     });
     const sups = Object.keys(bySup).map((id) => ({ id, total: bySup[id], name: (K.getDoc("suppliers", id) || {}).name || "仕入先未設定" })).sort((a, b) => b.total - a.total);
-    if (sups.length && sups[0].total > 0) {
+    if (F("inventory.order") && sups.length && sups[0].total > 0) {
       const sum = sups.reduce((a, b) => a + b.total, 0);
       hints.push({
         key: "supplier_top", kind: "info", area: "原価",
@@ -1585,7 +1592,7 @@
       });
     }
     // 3b. ロスの多い品目（期間内の waste）
-    const wr = wasteRank(st.from, st.to);
+    const wr = F("inventory.waste") ? wasteRank(st.from, st.to) : [];
     if (wr.length && wr[0].amount > 0) {
       const top = wr[0];
       const rTop = Object.keys(top.reasons).sort((a, b) => top.reasons[b] - top.reasons[a])[0];
@@ -1658,13 +1665,13 @@
       kpi(pl + "の売上", st.days ? K.fmt.yen(st.total) : null, st.days ? st.days + "日分・1日平均 " + K.fmt.yen(st.total / st.days) : "売上を入力すると表示"),
       kpi(pl + "の平均客単価", st.avgTicket == null ? null : K.fmt.yen(st.avgTicket), st.avgTicket == null ? "客数を入力すると表示" : "客数 " + K.fmt.num(st.covers) + "人"),
       costKpi(pl, st.fc, st.days, set.targetFoodCost),
-      kpi(pl + "の人件費率", K.fmt.pct(st.laborRate),
+      !F("shift.shift") ? null : kpi(pl + "の人件費率", K.fmt.pct(st.laborRate),
         st.laborRate != null ? laborNote(st) + "・" + K.fmt.yen(st.labor.cost) + "（" + K.fmt.num(st.labor.hours, 1) + "h）・目標 " + K.fmt.pct(set.targetLabor) : !st.days ? "売上を入力すると表示" : "シフトと時給を入力すると表示",
         rateChip(st.laborRate, set.targetLabor)),
       h("div", { class: "kpi sal-kpi-extra", title: "出数×レシピ原価" }, ...kpi("理論原価率（" + pl + "）", K.fmt.pct(st.theoRate),
         st.theoRate != null ? "出数入力 " + st.itemDays + "日分の売上で計算・出数×レシピ原価 " + K.fmt.yen(st.theo) + "・目標 " + K.fmt.pct(set.targetFoodCost) : "メニュー別の出数を入力すると表示",
         rateChip(st.theoRate, set.targetFoodCost)).childNodes),
-      h("div", { class: "kpi sal-kpi-extra", title: "棚卸しで区切った実際原価率＋人件費率" }, ...kpi(pl + "のFL比率", K.fmt.pct(st.fl),
+      !F("shift.shift") ? null : h("div", { class: "kpi sal-kpi-extra", title: "棚卸しで区切った実際原価率＋人件費率" }, ...kpi(pl + "のFL比率", K.fmt.pct(st.fl),
         st.fl != null ? "実際原価率＋人件費率（" + st.labor.days + "日分）・目標 " + K.fmt.pct(flTarget) : "実際原価率と人件費率がそろうと表示",
         rateChip(st.fl, flTarget)).childNodes)));
     /* スマホ：理論原価率・FL比率は小さな集計帯 */
@@ -1674,7 +1681,7 @@
       h("span", { class: "sub", text: sub }));
     el.appendChild(h("div", { class: "sumbar sal-only-sm" },
       cell("理論原価率（" + pl + "）", st.theoRate, set.targetFoodCost, st.theoRate != null ? "出数入力 " + st.itemDays + "日分" : "出数の入力で表示"),
-      cell(pl + "のFL比率", st.fl, flTarget, st.fl != null ? "目標 " + K.fmt.pct(flTarget) : "実際原価率で表示")));
+      !F("shift.shift") ? null : cell(pl + "のFL比率", st.fl, flTarget, st.fl != null ? "目標 " + K.fmt.pct(flTarget) : "実際原価率で表示")));
     const stale = staleRecipes();
     if (stale.length) el.appendChild(h("div", { class: "card is-flag sal-stale" },
       h("span", { class: "sal-ico warn" }, K.icon("alert")),
@@ -1682,7 +1689,7 @@
         h("span", { class: "sal-li-title", text: "原価が古いレシピ " + stale.length + "件" }),
         h("span", { class: "sal-li-sub", text: "食材の単価が変わっています（" + stale.slice(0, 3).map((r) => r.name).join("・") + (stale.length > 3 ? " ほか" : "") + "）。理論原価率は更新前の原価で計算しています。" })),
       h("button", { class: "btn sm", onClick: () => K.go("recipe") }, "レシピ画面で更新")));
-    if (st.labor.missingWage) el.appendChild(h("p", { class: "muted small", style: { margin: 0 }, text: "※時給が未設定のスタッフが " + st.labor.missingWage + "名います。人件費率は低めに出ています。" }));
+    if (F("shift.shift") && st.labor.missingWage) el.appendChild(h("p", { class: "muted small", style: { margin: 0 }, text: "※時給が未設定のスタッフが " + st.labor.missingWage + "名います。人件費率は低めに出ています。" }));
 
     /* 改善ヒント */
     const hints = buildHints(st);
@@ -1706,7 +1713,7 @@
         return h("div", { class: "card sal-hint " + hn.kind },
           h("div", { class: "sal-hint-title" }, K.icon(hn.kind === "info" ? "bulb" : "alert"), h("span", { text: hn.title })),
           h("p", { class: "sal-hint-detail", text: hn.detail }),
-          h("div", { class: "sal-hint-foot" }, h("span", { class: "chip", text: hn.area }), btn));
+          h("div", { class: "sal-hint-foot" }, h("span", { class: "chip", text: hn.area }), F("sales.kaizen") ? btn : null));
       })));
     }
 
@@ -1750,7 +1757,7 @@
       rankSec.appendChild(h("p", { class: "sal-meta", style: { margin: 0 }, text: "出数合計 " + K.fmt.num(totQ) + "・売上寄与＝出数×売価（売上合計に対する割合）。原価率はレシピ画面の登録値。" }));
     }
     el.appendChild(h("div", { class: "sal-two" }, dowSec, rankSec));
-    el.appendChild(wasteSection(el));
+    if (F("inventory.waste")) el.appendChild(wasteSection(el));
   }
 
   /* --- 改善ボード --- */
@@ -1818,6 +1825,7 @@
       if (hasMy() && typeof K.my.watch === "function") K.my.watch("events", draw);
       K.on("day", draw);
       K.on("readonly", draw);
+      K.on("features", draw);
     },
   });
   /* =========================================================
@@ -1883,7 +1891,7 @@
           const rec = salesRec(d);
           const t = saleTotal(rec);
           /* 数字：予測客数・売上の目安・今日の売上 */
-          el.appendChild(h("div", { class: "sumbar sal-td-sum" },
+          if (F("sales")) el.appendChild(h("div", { class: "sumbar sal-td-sum" },
             h("div", { class: "cell" }, h("span", { class: "lbl", text: "今日の予測客数" }),
               h("span", { class: "val num" }, tg.fc.covers ? String(tg.fc.covers) : "—", tg.fc.covers ? h("small", { text: "名" }) : null),
               h("span", { class: "sub", text: fcNote(tg.fc) })),
@@ -1911,7 +1919,7 @@
         const offs = [];
         ["sales", "events", "notes", "items", "orders", "counts", "hygiene", "prep", "staff"].forEach((c) => { try { offs.push(K.watch(c, draw)); } catch (e) {} });
         if (hasMy() && typeof K.my.watch === "function") offs.push(K.my.watch("events", draw));
-        ["answers", "memos", "day", "staff"].forEach((ev) => { const off = K.on(ev, draw); if (typeof off === "function") offs.push(off); });
+        ["answers", "memos", "day", "staff", "features"].forEach((ev) => { const off = K.on(ev, draw); if (typeof off === "function") offs.push(off); });
         draw();
         return () => offs.forEach((f) => { try { f(); } catch (e) {} });
       },

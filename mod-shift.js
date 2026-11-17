@@ -381,6 +381,7 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
 
   // ナビのバッジ：いまの担当者が未確認の緊急連絡数（担当者未選択なら誰も確認していない緊急連絡数）
   function updateBadge() {
+    if (!K.feature("shift.notes")) { K.badge("shift", 0, "bad"); return; }   // 連絡がオフならバッジは出さない
     const cur = K.currentStaffId();
     const n = K.list("notes").filter((x) => x.priority === "urgent" && (cur ? !(x.readBy || []).includes(cur) : !(x.readBy || []).length)).length;
     K.badge("shift", n, "bad");
@@ -1009,7 +1010,7 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
         h("span", { class: "sft-dot" }),
         h("span", { class: "sft-staff-name", text: s.name || "（名前なし）" }),
         h("span", { class: "chip", text: s.role || "—" }),
-        h("span", { class: "sft-staff-wage" }, s.wage ? [h("small", { text: "時給" }), K.fmt.yen(s.wage)] : h("small", { text: "時給未設定" })),
+        !K.feature("shift.shift") ? null : h("span", { class: "sft-staff-wage" }, s.wage ? [h("small", { text: "時給" }), K.fmt.yen(s.wage)] : h("small", { text: "時給未設定" })),
         K.icon("chev"));
     }
 
@@ -1032,7 +1033,7 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       drawSw();
       const body = h("div", { class: "stack" },
         K.field("名前", fName),
-        h("div", { class: "grid2" }, K.field("役割", fRole), K.field("時給（円）", fWage, "人件費の計算に使います")),
+        h("div", { class: "grid2" }, K.field("役割", fRole), K.field("時給（円）", fWage, K.feature("shift.shift") ? "人件費の計算に使います" : "シフト機能をオンにすると人件費の計算に使われます")),
         h("div", { class: "field" }, h("span", { class: "field-label", text: "表示色" }), sw),
         h("label", { class: "sft-toggle" }, fActive, h("span", { text: "在籍中（オフにすると退職扱いで一覧・担当者選択から外れます）" })));
       const menu = isNew ? null : [{
@@ -1415,6 +1416,7 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       const list = todayCrew(today);
       const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
       const working = (e) => { const a = toMin(e.start), b = toMin(e.end); if (e._carry) return nowMin < b; return b > a ? nowMin >= a && nowMin < b : nowMin >= a; };
+      if (K.feature("shift.shift")) {
       el.appendChild(h("h3", { class: "sft-tm-h", text: "今日の出勤 " + (list.length ? headcount(list) : "") }));
       el.appendChild(list.length
         ? h("div", { class: "list sft-tm-crew" }, list.map((e) => {
@@ -1431,6 +1433,8 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
               h("span", { class: "sft-tm-time", text: e._carry ? "〜" + e.end : e.start + "–" + e.end }));
           }))
         : h("p", { class: "muted", style: "margin:0", text: "今日のシフトは登録されていません" }));
+      }
+      if (!K.feature("shift.notes")) return;
       const cur = K.currentStaffId();
       const notes = K.list("notes").filter((n) => n.priority === "urgent" || n.pinned)
         .sort((a, b) => (b.priority === "urgent" ? 1 : 0) - (a.priority === "urgent" ? 1 : 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
@@ -1452,7 +1456,7 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       })));
     };
     const iv = setInterval(draw, 60000);
-    const us = [K.watch("shifts", draw), K.watch("notes", draw), K.watch("staff", draw), K.on("staff", draw), K.on("day", draw), () => clearInterval(iv)];
+    const us = [K.watch("shifts", draw), K.watch("notes", draw), K.watch("staff", draw), K.on("staff", draw), K.on("day", draw), K.on("features", draw), () => clearInterval(iv)];
     return () => us.forEach((u) => { try { u(); } catch (e) {} });
   } });
 
@@ -1474,11 +1478,13 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       el.textContent = "";
       const sid = K.currentStaffId();
       if (!sid) {
-        el.appendChild(K.empty("担当者が選ばれていません", "ヘッダーで自分の名前を選ぶと表示されます。今週のシフトと、自分が未確認の連絡がここに出ます。"));
+        el.appendChild(K.empty("担当者が選ばれていません", "ヘッダーで自分の名前を選ぶと表示されます。" + [K.feature("shift.shift") ? "今週のシフト" : "", K.feature("shift.notes") ? "自分が未確認の連絡" : ""].filter(Boolean).join("と") + "がここに出ます。"));
         return;
       }
       const today = K.today();
       const ws = K.weekStart(today);
+      const useShift = K.feature("shift.shift"), useNotes = K.feature("shift.notes");
+      if (useShift) {
       // 次の出勤
       const nx = nextShift(sid);
       el.appendChild(h("div", { class: "sft-my-next" },
@@ -1508,6 +1514,8 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
               h("span", { class: "sft-my-hrs", text: K.fmt.num(d.list.reduce((t, e) => t + K.hours(e.start, e.end, e.breakMin), 0), 1) + "h" }));
           }))
         : h("div", { class: "list" }, h("div", { class: "sft-my-empty", text: "今週のシフトは登録されていません" })));
+      }
+      if (!useNotes) return;
       // 自分が未確認の連絡
       const unread = K.list("notes").filter((n) => !(n.readBy || []).includes(sid))
         .sort((a, b) => (b.priority === "urgent" ? 1 : 0) - (a.priority === "urgent" ? 1 : 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -1600,6 +1608,8 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
   K.watch("notes", () => { updateBadge(); refresh("notes", "my"); });
   K.on("staff", () => { updateBadge(); refresh("notes", "shift", "my"); });
   K.on("readonly", () => refresh("notes", "shift", "staff", "my"));
+  // 使う機能のオン・オフ（v3.4）：入口を出し分けて描き直す。データは消さない
+  K.on("features", () => { updateBadge(); refresh("notes", "shift", "staff", "my", "hyg"); });
   // 日付が変わったら「今日」の表示を更新。今週を見ていた場合は新しい週へ進める
   let lastToday = K.today();
   K.on("day", (d) => {

@@ -529,7 +529,9 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
   let catEditBtn = null;
   let viewbarEl = null;
   let listHost = null, sumHost = null, bandHost = null, catHost = null, tagHost = null, sortHost = null, headHost = null, searchInp = null, viewBtns = [];
-  const curStore = () => (view === "mine" ? MINE : SHOP);
+  // v3.4 使う機能：マイページがオフならマイレシピの切替を隠し、店のレシピだけを表示（データは消さない）
+  const mypageOn = () => K.feature("mypage");
+  const curStore = () => (view === "mine" && mypageOn() ? MINE : SHOP);
   function setView(v) {
     view = v === "mine" ? "mine" : "shop";
     try { localStorage.setItem("kitchen-ledger-rcp-view", view); } catch (e) {}
@@ -577,6 +579,8 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
   /* ---------- 一覧 ---------- */
   function renderList() {
     if (!listHost) return;
+    if (view === "mine" && !mypageOn()) { view = "shop"; cat = "すべて"; tagSel = ""; viewBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === view))); }
+    if (viewbarEl) viewbarEl.hidden = !mypageOn();
     const mine = view === "mine";
     const store = curStore();
     const all = mine ? myRecipes : recipes;
@@ -994,7 +998,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
       onClose: () => { if (saveMyNoteIfChanged) saveMyNoteIfChanged(); },
       menu: [
         { label: "複製して編集", icon: "clip", disabled: ro, onClick: () => { setTimeout(() => duplicate(r, store), 0); return "close"; } },
-        mine ? null : { label: "マイレシピにコピー", icon: "user", onClick: () => copyToMine(r) },
+        mine ? null : { label: "マイレシピにコピー", icon: "user", hidden: !mypageOn(), onClick: () => copyToMine(r) },
         mine ? { label: "店のレシピとして登録", icon: "send", hidden: K.readOnly() || !!r.shopId, onClick: () => { setTimeout(() => registerToShop(r), 0); return "close"; } } : null,
         { label: mine ? "このマイレシピを削除" : "このレシピを削除", icon: "trash", danger: true, disabled: ro, onClick: async () => ((await removeRecipe(r, store)) ? "close" : undefined) },
       ],
@@ -1560,7 +1564,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     return new Promise((resolve) => {
       let saved = false;
       const entries = () => SHOP.list().map((r) => ({ store: SHOP, r, key: "shop:" + r.id }))
-        .concat(MINE.list().map((r) => ({ store: MINE, r, key: "mine:" + r.id })));
+        .concat(mypageOn() ? MINE.list().map((r) => ({ store: MINE, r, key: "mine:" + r.id })) : []);
       let selKey = null;
       const hasPhoto = !!(memo.photo && (memo.photo.id || memo.photo.local));
       const err = h("span", { class: "rcp-err", role: "alert" });
@@ -1821,15 +1825,16 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
       prepHost.appendChild(list);
       // 材料の合計（折りたたみ）
       const mats = materialTotals(doc);
+      const invOn = K.feature("inventory");
       if (mats.length) {
         prepHost.appendChild(h("details", { class: "rcp-mat card" },
           h("summary", null, K.icon("chev"), "材料の合計（" + mats.length + "品目）", h("span", { class: "rcp-hint", text: "レシピの分量 × 仕込み人前" })),
           h("div", { class: "tblwrap" }, h("table", { class: "tbl" },
-            h("thead", null, h("tr", null, h("th", { text: "材料" }), h("th", { class: "r", text: "必要量" }), h("th", { class: "r", text: "在庫" }))),
+            h("thead", null, h("tr", null, h("th", { text: "材料" }), h("th", { class: "r", text: "必要量" }), invOn ? h("th", { class: "r", text: "在庫" }) : null)),
             h("tbody", null, mats.map((m) => h("tr", null,
               h("td", { text: m.name || "—" }),
               h("td", { class: "r" }, h("span", { class: "num", text: fmtQty(m.qty) }), h("span", { class: "rcp-u", text: " " + (m.unit || "") })),
-              h("td", { class: "r" }, m.stock == null ? h("span", { class: "muted", text: "—" })
+              !invOn ? null : h("td", { class: "r" }, m.stock == null ? h("span", { class: "muted", text: "—" })
                 : h("span", { class: "num" + (m.stock < m.qty ? " rcp-short" : ""), style: m.stock < m.qty ? { color: "var(--bad)", fontWeight: "700" } : null, text: fmtQty(m.stock) + (m.stock < m.qty ? " 不足" : "") })))))))));
       }
     } else {
@@ -1945,6 +1950,8 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
   });
 
   K.watch("prep", () => renderPrep());
+  // 使う機能が変わったら描き直す（入口の出し分けのみ。データ・計算は変えない）
+  K.on("features", () => { renderList(); renderPrep(); });
   K.on("day", () => renderPrep());
 
   /* ---------- マイページの欄（v2.5） ---------- */

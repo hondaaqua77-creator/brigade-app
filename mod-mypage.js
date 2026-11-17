@@ -583,11 +583,15 @@
       const m = card("クイックメモ", "edit");
       m.c.dataset.order = "20";
       memoSection(m.body); right.appendChild(m.c);
-      const mounted = new Set();
+      const mounted = new Map(); // key -> カード
       const mountSections = () => {
+        m.c.hidden = !K.feature("memo"); // クイックメモを使わない店では欄ごと隠す
+        const keys = new Set(K.mypageSections().map((s) => s.key));
+        mounted.forEach((card, key) => { card.hidden = !keys.has(key); }); // 使わない機能の欄は隠す
         K.mypageSections().forEach((s) => {
-          if (mounted.has(s.key)) return; mounted.add(s.key);
+          if (mounted.has(s.key)) return;
           const c = card(s.title, s.icon || "box");
+          mounted.set(s.key, c.c);
           try { s.mount(c.body); } catch (e) { console.error(e); c.body.appendChild(h("p", { class: "muted small", text: "この欄を表示できませんでした" })); }
           // 各担当の欄は右列に order 順で並べる（スマホでは縦に連続）
           // PC（1100px〜）では order 40 以上を左列（タスクの下）へ、それ以外は右列。スマホは縦に連続
@@ -599,6 +603,7 @@
         });
       };
       K.on("mypage-sections", mountSections);
+      K.on("features", mountSections);
       mountSections();
     },
   });

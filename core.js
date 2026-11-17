@@ -342,6 +342,120 @@
       } }],
     });
   };
+  /* ---------- 使う機能（店ごとにオン・オフ）— 統括管理 ----------
+     K.feature(key) -> true/false。key は "inventory"（タブ）や "inventory.waste"（タブの中の画面）、"today"・"memo"（道具）。
+     settings/main.features = { key: false } で保存（既定はすべてオン）。必須の画面はオフにできない。
+     変更すると K.emit("features")。各担当は、オフの機能へのボタン・リンク・要対応を自分の画面から出さない。 */
+  const FEATURES = [
+    { key: "home", label: "ホーム", desc: "カレンダー・今日のパネル・要対応", required: true },
+    { key: "inventory", label: "在庫・発注", subs: [
+      { key: "stock", label: "在庫", desc: "在庫数と適正数・過不足", required: true },
+      { key: "count", label: "棚卸し", desc: "月末などの数え直しと在庫金額" },
+      { key: "order", label: "発注・検品", desc: "発注書の作成・送付・受け取り時の検品" },
+      { key: "supplier", label: "仕入先", desc: "業者の連絡先・締め時間" },
+      { key: "waste", label: "ロス", desc: "廃棄の記録と金額" }] },
+    { key: "recipe", label: "レシピ", subs: [
+      { key: "list", label: "レシピ・原価", desc: "レシピ帳と原価率", required: true },
+      { key: "prep", label: "仕込みリスト", desc: "予測から仕込み量を自動で作る" }] },
+    { key: "shift", label: "シフト・連絡", subs: [
+      { key: "notes", label: "業務連絡", desc: "誰が確認したかわかる連絡板" },
+      { key: "shift", label: "シフト", desc: "週のシフト表と人件費" },
+      { key: "hygiene", label: "衛生記録", desc: "冷蔵庫の温度・手洗いなど（HACCP）" },
+      { key: "staff", label: "スタッフ", desc: "名前・役割・時給の登録", required: true }] },
+    { key: "sales", label: "売上・改善", subs: [
+      { key: "daily", label: "日報", desc: "毎日の売上・客数", required: true },
+      { key: "analysis", label: "分析", desc: "原価率・人件費率・ロスの順位" },
+      { key: "kaizen", label: "改善ボード", desc: "改善の提案と進み具合" }] },
+    { key: "mypage", label: "マイページ", desc: "自分のタスク・時間割・マイレシピ" },
+    { key: "memo", label: "クイックメモ", desc: "料理中にすぐ書けるメモ（下の＋ボタン）", tool: true },
+    { key: "today", label: "今日モード", desc: "営業中に大きな文字で見る1画面", tool: true },
+  ];
+  const FEATURE_PRESETS = [
+    { id: "all", label: "すべて使う", desc: "全部の機能", off: [] },
+    { id: "small", label: "小さな店", desc: "在庫・レシピ・連絡・日報に絞る",
+      off: ["inventory.supplier", "inventory.waste", "recipe.prep", "shift.hygiene", "sales.analysis", "sales.kaizen", "today"] },
+    { id: "cost", label: "原価管理だけ", desc: "在庫・発注とレシピ原価",
+      off: ["inventory.waste", "recipe.prep", "shift", "sales", "today"] },
+    { id: "solo", label: "自分用", desc: "レシピ・マイページ・メモだけ",
+      off: ["inventory", "shift", "sales", "recipe.prep", "today"] },
+  ];
+  const featFlags = () => Object.assign({}, (K.settings().features) || {});
+  const findFeat = (key) => {
+    const [a, b] = String(key).split(".");
+    const top = FEATURES.find((f) => f.key === a);
+    if (!top) return null;
+    return b ? { top, sub: (top.subs || []).find((x) => x.key === b) || null } : { top, sub: null };
+  };
+  K.feature = (key, flags) => {
+    flags = flags || featFlags();
+    const f = findFeat(key);
+    if (!f) return true; // 知らない key は止めない
+    if (f.sub === null && String(key).includes(".")) return true;
+    if (!f.top.required && flags[f.top.key] === false) return false;
+    if (f.sub && !f.sub.required && flags[key] === false) return false;
+    return true;
+  };
+  K.features = () => FEATURES.map((f) => ({ key: f.key, label: f.label, on: K.feature(f.key), subs: (f.subs || []).map((x) => ({ key: f.key + "." + x.key, label: x.label, on: K.feature(f.key + "." + x.key) })) }));
+  let lastFeatSig = "";
+  K.on("settings", () => { const sig = JSON.stringify(featFlags()); if (sig !== lastFeatSig) { lastFeatSig = sig; K.emit("features"); } });
+
+  K.openFeatures = () => {
+    const flags = featFlags();
+    const body = h("div", { class: "stack feat-ed" });
+    const presetBox = h("div", { class: "feat-presets" });
+    const groups = h("div", { class: "feat-groups" });
+    const summary = h("p", { class: "muted small feat-sum" });
+    const sw = (on, disabled, onChange, label) => {
+      const b = h("button", { class: "feat-sw" + (on ? " is-on" : ""), role: "switch", "aria-checked": String(on), "aria-label": label, disabled: !!disabled, onClick: () => onChange(!on) }, h("span", { class: "feat-knob" }));
+      return b;
+    };
+    const draw = () => {
+      presetBox.textContent = ""; groups.textContent = "";
+      FEATURE_PRESETS.forEach((p) => {
+        const match = FEATURES.every((f) => {
+          const want = !p.off.includes(f.key);
+          if (!f.required && (flags[f.key] !== false) !== want) return false;
+          return (f.subs || []).every((x) => x.required || !want || ((flags[f.key + "." + x.key] !== false) === !p.off.includes(f.key + "." + x.key)));
+        });
+        presetBox.appendChild(h("button", { class: "feat-preset" + (match ? " is-on" : ""), attrs: { "aria-pressed": String(match) }, onClick: () => {
+          Object.keys(flags).forEach((k) => delete flags[k]);
+          p.off.forEach((k) => { flags[k] = false; });
+          draw();
+        } }, h("b", { text: p.label }), h("span", { text: p.desc })));
+      });
+      let onCnt = 0, total = 0;
+      FEATURES.forEach((f) => {
+        const topOn = f.required || flags[f.key] !== false;
+        const head = h("div", { class: "feat-row is-top" + (topOn ? "" : " is-off") },
+          h("div", { class: "feat-txt" }, h("b", { text: f.label }), f.desc ? h("span", { text: f.desc }) : null, f.required ? h("span", { class: "feat-req", text: "必須" }) : null),
+          f.required ? null : sw(topOn, false, (v) => { if (v) delete flags[f.key]; else flags[f.key] = false; draw(); }, f.label + "を使う"));
+        const g = h("div", { class: "feat-group" + (topOn ? "" : " is-off") }, head);
+        if (!f.required && !f.subs) { total++; if (topOn) onCnt++; }
+        (f.subs || []).forEach((x) => {
+          const k = f.key + "." + x.key;
+          const on = topOn && (x.required || flags[k] !== false);
+          total++; if (on) onCnt++;
+          g.appendChild(h("div", { class: "feat-row" + (on ? "" : " is-off") },
+            h("div", { class: "feat-txt" }, h("b", { text: x.label }), h("span", { text: x.desc }), x.required ? h("span", { class: "feat-req", text: "必須" }) : null),
+            x.required ? null : sw(on, !topOn, (v) => { if (v) delete flags[k]; else flags[k] = false; draw(); }, x.label + "を使う")));
+        });
+        groups.appendChild(g);
+      });
+      summary.textContent = "使う機能 " + onCnt + " / " + total + "　オフにした機能は、タブ・ボタン・ホームの要対応・今日モード・メモの行き先から消えます。データは消えないので、あとで戻せます。";
+    };
+    draw();
+    body.append(h("div", { class: "feat-label", text: "おすすめのセット" }), presetBox, summary, groups);
+    K.sheet({
+      title: "使う機能を選ぶ", body, guard: true,
+      actions: [{ label: "キャンセル", kind: "ghost" }, { label: "保存", kind: "primary", onClick: async () => {
+        const clean = {}; Object.keys(flags).forEach((k) => { if (flags[k] === false) clean[k] = false; });
+        try { await CORE.put("settings", "main", Object.assign({}, K.getDoc("settings", "main") || {}, { features: clean })); }
+        catch (e) { K.toast("保存できませんでした", "bad"); return false; }
+        K.toast("使う機能を保存しました", "ok");
+      } }],
+    });
+  };
+
   const STAFF_KEY = "kitchen-ledger-staff";
   K.currentStaffId = () => {
     let id = null;
@@ -640,7 +754,9 @@
     const key = "kitchen-ledger-sub-" + moduleKey;
     let cur = null;
     try { cur = localStorage.getItem(key); } catch (e) {}
-    if (!tabs.find((t) => t.id === cur)) cur = tabs[0].id;
+    const enabled = (t) => K.feature(moduleKey + "." + t.id);
+    const firstOn = () => (tabs.find(enabled) || tabs[0]).id;
+    if (!tabs.find((t) => t.id === cur && enabled(t))) cur = firstOn();
     const bar = h("div", { class: "subtabs", role: "tablist" });
     const panes = {};
     const btns = {};
@@ -652,6 +768,7 @@
     const rendered = {};
     function show(id) {
       if (!panes[id]) return;
+      if (!enabled(tabs.find((t) => t.id === id))) id = firstOn();
       cur = id;
       try { localStorage.setItem(key, id); } catch (e) {}
       tabs.forEach((t) => {
@@ -662,6 +779,14 @@
     }
     root.appendChild(bar);
     tabs.forEach((t) => root.appendChild(panes[t.id]));
+    const applyFeat = () => {
+      let n = 0;
+      tabs.forEach((t) => { const on = enabled(t); btns[t.id].hidden = !on; if (on) n++; });
+      bar.hidden = n <= 1; // 画面が1つだけならタブの列ごと隠す
+      if (!enabled(tabs.find((t) => t.id === cur))) show(firstOn());
+    };
+    K.on("features", applyFeat);
+    applyFeat();
     show(cur);
     subtabApi[moduleKey] = { show };
     return { show };
@@ -702,10 +827,11 @@
     services[key] = Object.assign({ key, label: key, icon: "send", order: 50 }, def);
     K.emit("services", Object.keys(services));
   };
-  K.services = () => Object.values(services).sort((a, b) => a.order - b.order);
+  const SERVICE_FEATURE = { "task.add": "mypage", "order.add": "inventory.order", "note.post": "shift.notes", "stock.fix": "inventory", "waste.add": "inventory.waste", "prep.add": "recipe.prep", "recipe.log": "recipe", "event.add": "home", "kaizen.add": "sales.kaizen" };
+  K.services = () => Object.values(services).filter((sv) => K.feature(sv.feature || SERVICE_FEATURE[sv.key] || "")).sort((a, b) => a.order - b.order);
   K.callService = async (key, payload) => {
     const sv = services[key];
-    if (!sv) { K.toast("この行き先は使えません", "bad"); return false; }
+    if (!sv || !K.feature(sv.feature || SERVICE_FEATURE[key] || "")) { K.toast("この行き先は使えません", "bad"); return false; }
     try { return !!(await sv.handle(Object.freeze(Object.assign({}, payload)))); } catch (e) { console.error(e); return false; }
   };
 
@@ -739,6 +865,8 @@
   let currentKey = null;
   const views = {};
   K.go = (key, sub, opts) => {
+    if (!K.feature(key)) { key = "home"; sub = null; }
+    if (sub && !K.feature(key + "." + sub)) sub = null;
     const m = modules.find((x) => x.key === key);
     if (!m) return;
     currentKey = key;
@@ -893,6 +1021,9 @@
         h("div", { class: "grid2" }, K.field("目標原価率（%）", food), K.field("目標人件費率（%）", labor)),
         K.field("営業日", days),
         h("p", { class: "muted small", text: "保存先：" + (K.mode() === "db" ? "共有データ（スタッフ全員に反映）" : "この端末のみ") }),
+        h("div", { class: "feat-entry" },
+          h("div", { class: "feat-txt" }, h("b", { text: "使う機能" }), h("span", { text: (() => { const fs = K.features(); let on = 0, t = 0; fs.forEach((f) => { if (f.subs.length) f.subs.forEach((x) => { t++; if (x.on) on++; }); else if (f.key !== "home") { t++; if (f.on) on++; } }); return on + " / " + t + " を使用中。いらない機能を外して画面をすっきりできます"; })() })),
+          h("button", { class: "btn", onClick: () => K.openFeatures() }, K.icon("gear"), "選ぶ")),
         K.mode() === "local" ? dataSection() : null),
       actions: [
         { label: "キャンセル", kind: "ghost" },
@@ -933,12 +1064,25 @@
     const navBtns = nav.querySelectorAll(".nav-btn");
     nav.insertBefore(memoBtn, navBtns[Math.floor(navBtns.length / 2)] || null); // メモは下タブの真ん中
     document.addEventListener("keydown", (e) => {
-      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "") && !(e.target && e.target.isContentEditable) && !document.querySelector("#sheets .sheet-wrap")) { e.preventDefault(); K.openMemos(); }
+      if ((e.key === "m" || e.key === "M") && K.feature("memo") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "") && !(e.target && e.target.isContentEditable) && !document.querySelector("#sheets .sheet-wrap")) { e.preventDefault(); K.openMemos(); }
     });
     Object.keys(badgeState).forEach((k) => K.badge(k, badgeState[k].count, badgeState[k].kind));
+    // 使う機能に合わせてタブ・メモ・今日モードを出し分け
+    const applyNav = () => {
+      nav.querySelectorAll(".nav-btn").forEach((b) => { b.hidden = !K.feature(b.dataset.key); });
+      const vis = [...nav.querySelectorAll(".nav-btn")].filter((b) => !b.hidden);
+      memoBtn.hidden = !K.feature("memo");
+      nav.insertBefore(memoBtn, vis[Math.floor(vis.length / 2)] || null);
+      nav.dataset.count = String(vis.length + (memoBtn.hidden ? 0 : 1));
+      const tb = document.getElementById("today-btn"); if (tb) tb.hidden = !K.feature("today");
+      if (currentKey && !K.feature(currentKey)) K.go("home");
+    };
+    K.on("features", applyNav);
+    K.on("settings", applyNav);
+    applyNav();
     document.getElementById("settings-btn").addEventListener("click", openSettings);
     document.getElementById("today-btn").addEventListener("click", () => K.openToday());
-    document.addEventListener("keydown", (e) => { if ((e.key === "t" || e.key === "T") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "") && !document.querySelector("#sheets .sheet-wrap") && !document.getElementById("today-mode")) { e.preventDefault(); K.openToday(); } });
+    document.addEventListener("keydown", (e) => { if ((e.key === "t" || e.key === "T") && K.feature("today") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "") && !document.querySelector("#sheets .sheet-wrap") && !document.getElementById("today-mode")) { e.preventDefault(); K.openToday(); } });
     document.getElementById("staff-pick").addEventListener("change", (e) => K.setCurrentStaff(e.target.value || null));
     K.on("staff", renderHeader);
     K.on("settings", renderHeader);
@@ -1082,7 +1226,10 @@
   /* ---------- 今日モード（統括の枠＋各担当の欄）：ピーク時用に大きな文字で今日必要なものだけ ---------- */
   const todaySecs = [];
   K.todaySection = (def) => { todaySecs.push(Object.assign({ order: 50, span: 1 }, def)); };
+  const TODAY_FEATURE = { prep: "recipe.prep", hygiene: "shift.hygiene", crew: ["shift.notes", "shift.shift"], "today-plan": "home", "my-today": "mypage" };
+  const secOn = (def, map) => { const f = def.feature || map[def.key]; if (!f) return true; return Array.isArray(f) ? f.some((x) => K.feature(x)) : K.feature(f); };
   K.openToday = () => {
+    if (!K.feature("today")) return;
     if (document.getElementById("today-mode")) return;
     const unsubs = [];
     const grid = h("div", { class: "tm-grid" });
@@ -1107,7 +1254,7 @@
         h("div", { class: "tm-title" }, h("span", { text: "今日モード" }), h("span", { class: "tm-date num", text: K.fmt.date(K.today()) }), clock),
         h("button", { class: "btn tm-close", onClick: close }, K.icon("x"), "閉じる")),
       grid);
-    todaySecs.slice().sort((a, b) => a.order - b.order).forEach((sct) => {
+    todaySecs.filter((d) => secOn(d, TODAY_FEATURE)).sort((a, b) => a.order - b.order).forEach((sct) => {
       const body = h("div", { class: "tm-body" });
       grid.appendChild(h("section", { class: "tm-card" + (sct.span > 1 ? " is-wide" : "") }, h("h2", { class: "tm-sec" }, K.icon(sct.icon || "box"), sct.title), body));
       try { const u = sct.mount(body, { close }); if (typeof u === "function") unsubs.push(u); } catch (e) { console.error(e); body.appendChild(h("p", { class: "muted", text: "表示できませんでした" })); }
@@ -1122,7 +1269,8 @@
   /* ---------- マイページの欄（各モジュールが自分の欄を差し込む） ---------- */
   const mySections = [];
   K.mypageSection = (def) => { mySections.push(Object.assign({ order: 50 }, def)); K.emit("mypage-sections"); };
-  K.mypageSections = () => mySections.slice().sort((a, b) => a.order - b.order);
+  const MY_FEATURE = { "my-schedule": ["shift.shift", "shift.notes"], "my-recipes": "recipe" };
+  K.mypageSections = () => mySections.filter((d) => secOn(d, MY_FEATURE)).sort((a, b) => a.order - b.order);
 
   /* ---------- クイックメモ（統括）：書いた本人だけが見られる走り書き。あとで各モジュールの窓口へ回す ----------
      保存先：共有モード＝data/users/<自分のid>/<memoId>（本人のみ）／それ以外＝この端末（localStorage） */
