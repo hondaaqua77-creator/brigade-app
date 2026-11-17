@@ -399,61 +399,108 @@
   let lastFeatSig = "";
   K.on("settings", () => { const sig = JSON.stringify(featFlags()); if (sig !== lastFeatSig) { lastFeatSig = sig; K.emit("features"); } });
 
+  /* 機能カスタマイズ画面：「使っている機能（外す）」と「追加できる機能（＋追加）」の2段。押すとすぐ反映＋元に戻す */
+  const FEAT_META = {
+    inventory: { icon: "box", what: "食材の在庫・適正数・過不足を管理", where: "下のタブ「在庫」" },
+    "inventory.stock": { icon: "box", what: "在庫数を＋1／−1で直し、不足が一目でわかる", where: "在庫タブ" },
+    "inventory.count": { icon: "list", what: "月末に数えるだけで在庫金額と原価率が出る", where: "在庫タブ →「棚卸し」" },
+    "inventory.order": { icon: "truck", what: "不足から発注書を作り、届いたら検品。単価の変更はレシピ原価に反映", where: "在庫タブ →「発注」" },
+    "inventory.supplier": { icon: "send", what: "業者の電話・締め時間・納品日をまとめて管理", where: "在庫タブ →「仕入先」" },
+    "inventory.waste": { icon: "waste", what: "捨てた食材を記録し、ロスの多い品目がわかる", where: "在庫タブ →「ロス」" },
+    recipe: { icon: "book", what: "レシピ帳と原価率（目標ラインで色分け）", where: "下のタブ「レシピ」" },
+    "recipe.list": { icon: "book", what: "写真・手順・原価率つきのレシピ帳", where: "レシピタブ" },
+    "recipe.prep": { icon: "knife", what: "予約と曜日の平均から、今日の仕込み量を自動で作る", where: "レシピタブ →「仕込み」" },
+    shift: { icon: "calendar", what: "業務連絡・シフト・衛生記録", where: "下のタブ「シフト」" },
+    "shift.notes": { icon: "bell", what: "誰が確認したか一目でわかる連絡板（LINEの代わりに）", where: "シフトタブ →「業務連絡」" },
+    "shift.shift": { icon: "calendar", what: "週のシフト表と人件費の計算", where: "シフトタブ →「シフト」" },
+    "shift.hygiene": { icon: "thermo", what: "冷蔵庫の温度・手洗いを1タップで記録（HACCP）", where: "シフトタブ →「衛生」" },
+    "shift.staff": { icon: "user", what: "スタッフの名前・役割・時給", where: "シフトタブ →「スタッフ」" },
+    sales: { icon: "chart", what: "毎日の売上の記録と分析・改善", where: "下のタブ「売上」" },
+    "sales.daily": { icon: "chart", what: "売上・客数を毎日記録", where: "売上タブ" },
+    "sales.analysis": { icon: "chart", what: "原価率・人件費率・ロスの順位を自動で集計", where: "売上タブ →「分析」" },
+    "sales.kaizen": { icon: "bulb", what: "改善のアイデアを出し合い、進み具合を管理", where: "売上タブ →「改善ボード」" },
+    mypage: { icon: "user", what: "自分だけのタスク・1日の時間割・マイレシピ", where: "下のタブ「My」" },
+    memo: { icon: "edit", what: "料理中でもすぐ書けるメモ。あとで発注や連絡に回せる", where: "下のタブ中央の「＋」" },
+    today: { icon: "sun", what: "営業中に必要なことだけを大きな文字で1画面に", where: "画面上の「今日モード」" },
+    home: { icon: "home", what: "カレンダー・今日の予定・要対応", where: "下のタブ「ホーム」" },
+  };
+  const featSave = async (next, msg, prev) => {
+    const clean = {}; Object.keys(next).forEach((k) => { if (next[k] === false) clean[k] = false; });
+    try { await CORE.put("settings", "main", Object.assign({}, K.getDoc("settings", "main") || {}, { features: clean })); }
+    catch (e) { K.toast("保存できませんでした", "bad"); return false; }
+    if (msg) K.toast(msg, "ok", prev ? { action: { label: "元に戻す", onClick: () => featSave(prev, "元に戻しました") } } : undefined);
+    return true;
+  };
   K.openFeatures = () => {
-    const flags = featFlags();
-    const body = h("div", { class: "stack feat-ed" });
-    const presetBox = h("div", { class: "feat-presets" });
-    const groups = h("div", { class: "feat-groups" });
-    const summary = h("p", { class: "muted small feat-sum" });
-    const sw = (on, disabled, onChange, label) => {
-      const b = h("button", { class: "feat-sw" + (on ? " is-on" : ""), role: "switch", "aria-checked": String(on), "aria-label": label, disabled: !!disabled, onClick: () => onChange(!on) }, h("span", { class: "feat-knob" }));
-      return b;
-    };
+    const box = h("div", { class: "fx" });
     const draw = () => {
-      presetBox.textContent = ""; groups.textContent = "";
-      FEATURE_PRESETS.forEach((p) => {
-        const match = FEATURES.every((f) => {
-          const want = !p.off.includes(f.key);
-          if (!f.required && (flags[f.key] !== false) !== want) return false;
-          return (f.subs || []).every((x) => x.required || !want || ((flags[f.key + "." + x.key] !== false) === !p.off.includes(f.key + "." + x.key)));
-        });
-        presetBox.appendChild(h("button", { class: "feat-preset" + (match ? " is-on" : ""), attrs: { "aria-pressed": String(match) }, onClick: () => {
-          Object.keys(flags).forEach((k) => delete flags[k]);
-          p.off.forEach((k) => { flags[k] = false; });
-          draw();
-        } }, h("b", { text: p.label }), h("span", { text: p.desc })));
-      });
-      let onCnt = 0, total = 0;
+      box.textContent = "";
+      const flags = featFlags();
+      const used = [], addable = [];
+      let onCnt = 0;
       FEATURES.forEach((f) => {
-        const topOn = f.required || flags[f.key] !== false;
-        const head = h("div", { class: "feat-row is-top" + (topOn ? "" : " is-off") },
-          h("div", { class: "feat-txt" }, h("b", { text: f.label }), f.desc ? h("span", { text: f.desc }) : null, f.required ? h("span", { class: "feat-req", text: "必須" }) : null),
-          f.required ? null : sw(topOn, false, (v) => { if (v) delete flags[f.key]; else flags[f.key] = false; draw(); }, f.label + "を使う"));
-        const g = h("div", { class: "feat-group" + (topOn ? "" : " is-off") }, head);
-        if (!f.required && !f.subs) { total++; if (topOn) onCnt++; }
-        (f.subs || []).forEach((x) => {
-          const k = f.key + "." + x.key;
-          const on = topOn && (x.required || flags[k] !== false);
-          total++; if (on) onCnt++;
-          g.appendChild(h("div", { class: "feat-row" + (on ? "" : " is-off") },
-            h("div", { class: "feat-txt" }, h("b", { text: x.label }), h("span", { text: x.desc }), x.required ? h("span", { class: "feat-req", text: "必須" }) : null),
-            x.required ? null : sw(on, !topOn, (v) => { if (v) delete flags[k]; else flags[k] = false; draw(); }, x.label + "を使う")));
-        });
-        groups.appendChild(g);
+        const topOn = K.feature(f.key, flags);
+        if (!topOn) { addable.push({ key: f.key, label: f.label + (f.subs ? "（タブごと）" : ""), top: f }); return; }
+        const subs = (f.subs || []).map((x) => ({ key: f.key + "." + x.key, label: x.label, req: x.required, on: K.feature(f.key + "." + x.key, flags) }));
+        subs.filter((x) => !x.on).forEach((x) => addable.push({ key: x.key, label: x.label, parent: f.label }));
+        used.push({ f, subs: subs.filter((x) => x.on) });
+        onCnt += f.subs ? subs.filter((x) => x.on).length : 1;
       });
-      summary.textContent = "使う機能 " + onCnt + " / " + total + "　オフにした機能は、タブ・ボタン・ホームの要対応・今日モード・メモの行き先から消えます。データは消えないので、あとで戻せます。";
+      const btn = (label, cls, onClick, aria) => h("button", { class: "btn " + cls, "aria-label": aria, onClick }, label);
+      const remove = (key, label) => { const prev = featFlags(); const next = Object.assign({}, prev, { [key]: false }); featSave(next, "「" + label + "」を外しました", prev); };
+      const add = (key, label, top) => {
+        const prev = featFlags(); const next = Object.assign({}, prev); delete next[key];
+        if (top && top.subs) top.subs.forEach((x) => delete next[top.key + "." + x.key]); // タブごと戻すときは中の画面もすべて戻す
+        const m = FEAT_META[key] || {};
+        featSave(next, "「" + label.replace("（タブごと）", "") + "」を追加しました" + (m.where ? "（" + m.where + "）" : ""), prev);
+      };
+      // まとめて選ぶ
+      const presets = h("div", { class: "fx-presets" }, ...FEATURE_PRESETS.map((p) => {
+        const want = {}; p.off.forEach((k) => { want[k] = false; });
+        const same = JSON.stringify(Object.keys(want).sort()) === JSON.stringify(Object.keys(flags).filter((k) => flags[k] === false).sort());
+        return h("button", { class: "fx-preset" + (same ? " is-on" : ""), attrs: { "aria-pressed": String(same) }, onClick: () => { if (same) return; const prev = featFlags(); featSave(want, "「" + p.label + "」のセットにしました", prev); } },
+          h("b", { text: p.label }), h("span", { text: p.desc }));
+      }));
+      box.append(
+        h("p", { class: "fx-intro", text: "使わない機能は「外す」、使いたい機能は「＋追加」。押すとすぐ反映されます。外してもデータは消えません。" }),
+        h("div", { class: "fx-h" }, h("span", { text: "おすすめのセットから選ぶ" })),
+        presets);
+      // 追加できる機能（あるときは先に出す）
+      const addSec = () => {
+        box.appendChild(h("div", { class: "fx-h" }, h("span", { text: "追加できる機能" }), h("b", { class: "fx-cnt", text: addable.length + "個" })));
+        if (!addable.length) { box.appendChild(h("p", { class: "fx-none", text: "すべての機能を使っています。" })); return; }
+        box.appendChild(h("div", { class: "fx-addlist" }, ...addable.map((a) => {
+          const m = FEAT_META[a.key] || {};
+          return h("div", { class: "fx-add" },
+            h("span", { class: "fx-ico" }, K.icon(m.icon || "plus")),
+            h("div", { class: "fx-txt" }, h("b", { text: a.label }), h("span", { text: m.what || "" }), h("span", { class: "fx-where", text: "追加すると：" + (m.where || "") })),
+            btn("＋ 追加", "primary fx-in", () => add(a.key, a.label, a.top), a.label + "を追加"));
+        })));
+      };
+      if (addable.length) addSec();
+      box.appendChild(h("div", { class: "fx-h" }, h("span", { text: "使っている機能" }), h("b", { class: "fx-cnt", text: onCnt + "個" })));
+      used.forEach(({ f, subs }) => {
+        const m = FEAT_META[f.key] || {};
+        const card = h("div", { class: "fx-card" },
+          h("div", { class: "fx-row is-head" },
+            h("span", { class: "fx-ico" }, K.icon(m.icon || "box")),
+            h("div", { class: "fx-txt" }, h("b", { text: f.label }), h("span", { text: m.where || "" })),
+            f.required ? h("span", { class: "fx-base", text: "基本" }) : btn(f.subs ? "タブごと外す" : "外す", "fx-out", () => remove(f.key, f.label), f.label + "を外す")));
+        if (!f.subs && m.what) card.appendChild(h("p", { class: "fx-what", text: m.what }));
+        subs.forEach((x) => {
+          const sm = FEAT_META[x.key] || {};
+          card.appendChild(h("div", { class: "fx-row" },
+            h("span", { class: "fx-ico is-sub" }, K.icon(sm.icon || "box")),
+            h("div", { class: "fx-txt" }, h("b", { text: x.label }), h("span", { text: sm.what || "" })),
+            x.req ? h("span", { class: "fx-base", text: "基本" }) : btn("外す", "fx-out", () => remove(x.key, x.label), x.label + "を外す")));
+        });
+        box.appendChild(card);
+      });
+      if (!addable.length) addSec();
     };
     draw();
-    body.append(h("div", { class: "feat-label", text: "おすすめのセット" }), presetBox, summary, groups);
-    K.sheet({
-      title: "使う機能を選ぶ", body, guard: true,
-      actions: [{ label: "キャンセル", kind: "ghost" }, { label: "保存", kind: "primary", onClick: async () => {
-        const clean = {}; Object.keys(flags).forEach((k) => { if (flags[k] === false) clean[k] = false; });
-        try { await CORE.put("settings", "main", Object.assign({}, K.getDoc("settings", "main") || {}, { features: clean })); }
-        catch (e) { K.toast("保存できませんでした", "bad"); return false; }
-        K.toast("使う機能を保存しました", "ok");
-      } }],
-    });
+    const off = K.on("features", draw);
+    K.sheet({ title: "機能をカスタマイズ", body: box, className: "fx-sheet", onClose: () => { if (typeof off === "function") off(); }, actions: [{ label: "閉じる", kind: "ghost" }] });
   };
 
   const STAFF_KEY = "kitchen-ledger-staff";
@@ -1022,8 +1069,8 @@
         K.field("営業日", days),
         h("p", { class: "muted small", text: "保存先：" + (K.mode() === "db" ? "共有データ（スタッフ全員に反映）" : "この端末のみ") }),
         h("div", { class: "feat-entry" },
-          h("div", { class: "feat-txt" }, h("b", { text: "使う機能" }), h("span", { text: (() => { const fs = K.features(); let on = 0, t = 0; fs.forEach((f) => { if (f.subs.length) f.subs.forEach((x) => { t++; if (x.on) on++; }); else if (f.key !== "home") { t++; if (f.on) on++; } }); return on + " / " + t + " を使用中。いらない機能を外して画面をすっきりできます"; })() })),
-          h("button", { class: "btn", onClick: () => K.openFeatures() }, K.icon("gear"), "選ぶ")),
+          h("div", { class: "feat-txt" }, h("b", { text: "機能をカスタマイズ" }), h("span", { text: (() => { const fs = K.features(); let on = 0, t = 0; fs.forEach((f) => { if (f.subs.length) f.subs.forEach((x) => { t++; if (x.on) on++; }); else if (f.key !== "home") { t++; if (f.on) on++; } }); return on + "個を使用中。使わない機能を外したり、新しい機能を追加できます"; })() })),
+          h("button", { class: "btn", onClick: () => K.openFeatures() }, K.icon("gear"), "開く")),
         K.mode() === "local" ? dataSection() : null),
       actions: [
         { label: "キャンセル", kind: "ghost" },
@@ -1067,6 +1114,8 @@
       if ((e.key === "m" || e.key === "M") && K.feature("memo") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "") && !(e.target && e.target.isContentEditable) && !document.querySelector("#sheets .sheet-wrap")) { e.preventDefault(); K.openMemos(); }
     });
     Object.keys(badgeState).forEach((k) => K.badge(k, badgeState[k].count, badgeState[k].kind));
+    // PC のサイドバー下に「機能をカスタマイズ」
+    nav.appendChild(h("button", { class: "nav-feat", onClick: () => K.openFeatures() }, K.icon("gear"), h("span", { text: "機能をカスタマイズ" })));
     // 使う機能に合わせてタブ・メモ・今日モードを出し分け
     const applyNav = () => {
       nav.querySelectorAll(".nav-btn").forEach((b) => { b.hidden = !K.feature(b.dataset.key); });
@@ -1142,7 +1191,8 @@
           body: h("div", { class: "stack" },
             h("p", { text: "在庫・発注・レシピ・仕込み・シフト・衛生記録・売上を、この端末ひとつで管理できる厨房アプリです。" }),
             h("p", { class: "muted small", text: "データはすべてこの端末の中に保存され、外部には送信されません。機種変更や予備のために、店舗設定（右上の歯車）からバックアップを書き出せます。" }),
-            h("p", { class: "muted small", text: "まずはサンプルデータで操作を試すこともできます（あとで「すべてのデータを消す」で空に戻せます）。" })),
+            h("p", { class: "muted small", text: "まずはサンプルデータで操作を試すこともできます（あとで「すべてのデータを消す」で空に戻せます）。" }),
+            h("button", { class: "btn fx-welcome", onClick: () => { setTimeout(() => K.openFeatures(), 50); } }, K.icon("gear"), "使う機能を先に選ぶ（あとからでも変えられます）")),
           actions: [
             { label: "最初から始める", kind: "ghost", onClick: () => { done(); } },
             { label: "サンプルで試す", kind: "primary", onClick: () => { done(); loadSample(); } },

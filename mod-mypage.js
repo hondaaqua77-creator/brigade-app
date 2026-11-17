@@ -15,6 +15,11 @@
 .myp-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .myp-sec-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .myp-sec-head .sec-title { white-space: nowrap; }
+.myp-feat { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 16px; min-height: 60px; padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.myp-feat > .ico { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.myp-feat span { flex: 1 1 auto; display: flex; flex-direction: column; }
+.myp-feat b { font-size: 15px; }
+.myp-feat small { font-size: 12.5px; color: var(--muted); }
 @media (max-width: 559px) { .myp-sec-head { flex-wrap: wrap; } .myp-seg-host { flex: 1 1 100%; } .myp-seg-host .seg { width: 100%; } .myp-seg-host .seg-btn { flex: 1 1 0; padding: 0 6px; } }
 .myp-sec-head > .ico { width: 20px; height: 20px; color: var(--accent); }
 .myp-add { display: flex; flex-direction: column; gap: 10px; }
@@ -602,6 +607,9 @@
           col.insertBefore(c.c, after || null);
         });
       };
+      // 機能をカスタマイズ（マイページの一番下）
+      root.appendChild(h("button", { class: "myp-feat", onClick: () => K.openFeatures() },
+        K.icon("gear"), h("span", null, h("b", { text: "機能をカスタマイズ" }), h("small", { text: "使わない機能を外す・新しい機能を追加する" })), K.icon("chev")));
       K.on("mypage-sections", mountSections);
       K.on("features", mountSections);
       mountSections();
