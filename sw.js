@@ -1,6 +1,6 @@
 /* BRIGADE service worker — アプリ本体を端末に保存し、電波がなくても起動できるようにする（データは IndexedDB 側で別管理） */
-const VERSION = "brigade-f5016f2ddf";
-const SHELL = ["./","index.html","manifest.webmanifest","sample.json","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/apple-touch-icon.png","icons/favicon-32.png","core.js?v=f5016f2ddf","mod-sales.js?v=f5016f2ddf","mod-inventory.js?v=f5016f2ddf","mod-recipe.js?v=f5016f2ddf","mod-shift.js?v=f5016f2ddf","mod-mypage.js?v=f5016f2ddf"];
+const VERSION = "brigade-206b135370";
+const SHELL = ["./","index.html","manifest.webmanifest","sample.json","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/apple-touch-icon.png","icons/favicon-32.png","core.js?v=206b135370","mod-sales.js?v=206b135370","mod-inventory.js?v=206b135370","mod-recipe.js?v=206b135370","mod-shift.js?v=206b135370","mod-mypage.js?v=206b135370"];
 // HTTPキャッシュを通さず最新を取る（古い index.html が新しい版に混ざらないように）
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" }))))); });
 self.addEventListener("activate", (e) => {

@@ -271,6 +271,77 @@
   /* ---------- 設定・担当者 ---------- */
   const DEFAULT_SETTINGS = { storeName: "", targetFoodCost: 0.3, targetLabor: 0.25, openDays: "" };
   K.settings = () => Object.assign({}, DEFAULT_SETTINGS, K.getDoc("settings", "main") || {});
+
+  /* ---------- カテゴリ（店ごとに編集できる分類）— 統括管理 ----------
+     K.categories(kind) -> ["前菜", ...]（最後は必ず「その他」）。kind: "recipe" | "item"
+     K.editCategories(kind, { counts }) で編集シート。保存すると settings/main に保存し、
+     K.emit("categories", { kind, renamed:[{from,to}], removed:[名前] }) を出す。
+     各担当は自分のデータの category を、この通知に合わせて自分で書き換える（境界）。 */
+  const CAT_DEFAULTS = {
+    recipe: ["前菜", "メイン", "ご飯・麺", "汁物", "デザート", "ドリンク", "仕込み", "その他"],
+    item: ["肉", "魚", "野菜", "乾物", "調味料", "乳製品", "酒類", "消耗品", "その他"],
+  };
+  const CAT_FIELD = { recipe: "recipeCats", item: "itemCats" };
+  const CAT_LABEL = { recipe: "レシピのカテゴリ", item: "食材のカテゴリ" };
+  K.categories = (kind) => {
+    const v = K.settings()[CAT_FIELD[kind]];
+    const list = (Array.isArray(v) && v.length ? v : CAT_DEFAULTS[kind]).filter((x) => x && x !== "その他");
+    return list.concat("その他");
+  };
+  K.editCategories = (kind, opts) => {
+    opts = opts || {};
+    const counts = opts.counts || {};
+    const rows = K.categories(kind).filter((c) => c !== "その他").map((c) => ({ orig: c, name: c }));
+    const removed = [];
+    const list = h("div", { class: "cat-ed-list" });
+    const add = K.input({ placeholder: "新しいカテゴリ名（例：アラカルト）", maxlength: 20 });
+    const draw = () => {
+      list.textContent = "";
+      rows.forEach((r, i) => {
+        const inp = K.input({ value: r.name, maxlength: 20, "aria-label": "カテゴリ名" });
+        inp.addEventListener("input", () => { r.name = inp.value; });
+        list.appendChild(h("div", { class: "cat-ed-row" },
+          h("div", { class: "cat-ed-move" },
+            h("button", { class: "icon-btn", "aria-label": r.name + " を上へ", disabled: i === 0, onClick: () => { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); draw(); } }, "↑"),
+            h("button", { class: "icon-btn", "aria-label": r.name + " を下へ", disabled: i === rows.length - 1, onClick: () => { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); draw(); } }, "↓")),
+          inp,
+          h("span", { class: "cat-ed-cnt muted small", text: r.orig && counts[r.orig] ? counts[r.orig] + "件" : "" }),
+          h("button", { class: "icon-btn", "aria-label": r.name + " を削除", onClick: async () => {
+            const n = r.orig ? counts[r.orig] || 0 : 0;
+            if (n && !(await K.confirm("「" + r.orig + "」の " + n + " 件は「その他」に移ります。削除しますか？", "削除する", { danger: true }))) return;
+            if (r.orig) removed.push(r.orig);
+            rows.splice(i, 1); draw();
+          } }, K.icon("trash"))));
+      });
+      list.appendChild(h("div", { class: "cat-ed-row is-fixed" }, h("span", { class: "muted small", text: "その他（いつも最後・削除できません）" }), h("span", { class: "cat-ed-cnt muted small", text: counts["その他"] ? counts["その他"] + "件" : "" })));
+    };
+    draw();
+    const doAdd = () => {
+      const v = add.value.trim(); K.clearErrors(body);
+      if (!v) { K.fieldError(add, "カテゴリ名を入れてください"); return; }
+      if (v === "その他" || rows.some((r) => r.name.trim() === v)) { K.fieldError(add, "同じ名前のカテゴリがあります"); return; }
+      rows.push({ orig: null, name: v }); add.value = ""; draw();
+    };
+    add.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doAdd(); } });
+    const body = h("div", { class: "stack" },
+      h("p", { class: "muted small", text: "並び順は一覧の表示順になります。名前を変えると、登録済みのデータも新しい名前に変わります。" }),
+      list,
+      h("div", { class: "cat-ed-add" }, add, h("button", { class: "btn", onClick: doAdd }, K.icon("plus"), "追加")));
+    K.sheet({
+      title: CAT_LABEL[kind] + "を編集", body, guard: true,
+      actions: [{ label: "キャンセル", kind: "ghost" }, { label: "保存", kind: "primary", onClick: async () => {
+        K.clearErrors(body);
+        const names = rows.map((r) => r.name.trim());
+        const bad = names.findIndex((n, i) => !n || n === "その他" || names.indexOf(n) !== i);
+        if (bad >= 0) { const inp = list.querySelectorAll("input")[bad]; K.fieldError(inp, !names[bad] ? "名前を入れてください" : "同じ名前があります"); K.focusFirstError(body); return false; }
+        const renamed = rows.filter((r) => r.orig && r.orig !== r.name.trim()).map((r) => ({ from: r.orig, to: r.name.trim() }));
+        try { await CORE.put("settings", "main", Object.assign({}, K.getDoc("settings", "main") || {}, { [CAT_FIELD[kind]]: names })); }
+        catch (e) { K.toast("保存できませんでした", "bad"); return false; }
+        K.emit("categories", { kind, renamed, removed });
+        K.toast(CAT_LABEL[kind] + "を保存しました", "ok");
+      } }],
+    });
+  };
   const STAFF_KEY = "kitchen-ledger-staff";
   K.currentStaffId = () => {
     let id = null;
@@ -831,12 +902,12 @@
             K.clearErrors(food.closest(".stack"));
             [food, labor].forEach((c) => { const v = c.value.trim(), n = Number(v); if (v === "" || !isFinite(n) || n < 0 || n > 100) K.fieldError(c, "0〜100の数値で入力してください"); });
             if (K.focusFirstError(food.closest(".stack"))) return false;
-            await CORE.put("settings", "main", {
+            await CORE.put("settings", "main", Object.assign({}, K.getDoc("settings", "main") || {}, {
               storeName: name.value.trim(),
               targetFoodCost: Number(food.value) / 100,
               targetLabor: Number(labor.value) / 100,
               openDays: days.value.trim(),
-            });
+            }));
             K.toast("店舗設定を保存しました", "ok");
           },
         },

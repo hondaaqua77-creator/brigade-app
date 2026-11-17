@@ -36,23 +36,55 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
 .sft-post { border-color: var(--accent); color: var(--accent); }
 .sft-post .ico { color: var(--accent); }
 
-/* 連絡カード */
+/* 連絡カード：1段目＝いつ・誰が・種類／2段目＝内容／3段目＝誰が確認したか。左端の太い帯＋文字ラベルで状態 */
 .sft-notes { display: flex; flex-direction: column; gap: 10px; }
-.sft-note { padding: 14px 14px 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-@media (min-width: 900px) { .sft-note { padding: 16px 18px 14px 20px; } }
-.sft-note-top { display: flex; align-items: center; gap: 6px; min-height: 28px; }
-.sft-note-tools { margin-left: auto; display: flex; gap: 0; margin-right: -10px; margin-top: -10px; margin-bottom: -6px; }
+.sft-note { position: relative; overflow: hidden; padding: 12px 14px 12px 20px; display: flex; flex-direction: column; gap: 8px; }
+.sft-note::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--line-strong); }
+.sft-note.sft-st-bad::before { background: var(--bad); }
+.sft-note.sft-st-warn::before { background: var(--warn); }
+.sft-note.sft-st-ok::before { background: var(--ok); }
+.sft-note.sft-st-bad { border-color: var(--bad-soft); }
+@media (min-width: 900px) { .sft-note { padding: 14px 18px 14px 24px; } }
+.sft-note-top { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.sft-note-who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; font-size: 13.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+.sft-when { font-weight: 700; color: var(--ink); flex: none; }
+.sft-poster { overflow: hidden; text-overflow: ellipsis; }
+.sft-sep { color: var(--line-strong); }
+.sft-note-tools { flex: none; display: flex; gap: 0; margin-right: -10px; margin-top: -8px; margin-bottom: -8px; }
 .sft-note-tools .icon-btn[aria-pressed="true"] { color: var(--accent); }
-.sft-note-text { white-space: pre-wrap; word-break: break-word; font-size: 16px; line-height: 1.85; margin: 0; color: var(--ink); }
-.sft-note-foot { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
-.sft-note-meta { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.sft-note-meta b { color: var(--ink-2); font-weight: 700; }
-.sft-note-meta .sft-sep { margin: 0 6px; color: var(--line-strong); }
-.sft-unread { color: var(--warn); font-weight: 700; } .sft-allread { color: var(--ok); font-weight: 700; }
+.sft-note-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sft-note-text { white-space: pre-wrap; word-break: break-word; font-size: 16px; line-height: 1.7; margin: 0; color: var(--ink); }
+.sft-note-text.sft-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sft-note-text.sft-tappable { cursor: pointer; }
+.sft-more { align-self: flex-start; border: 0; background: transparent; padding: 0 4px; min-height: 44px; margin: -10px 0 -6px; color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; }
+.sft-readrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.sft-readrow:hover { background: #f8f9fb; }
+.sft-readrow > .ico { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.sft-readcount { display: flex; align-items: baseline; gap: 4px; flex: none; }
+.sft-readlbl { font-size: 12px; font-weight: 700; color: var(--muted); }
+.sft-readcount b { font-size: 15px; font-weight: 600; }
+.sft-readbar { flex: 0 0 56px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.sft-readbar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.sft-readbar.sft-st-ok i { background: var(--ok); }
+.sft-readbar.sft-st-warn i, .sft-readbar.sft-st-bad i { background: var(--warn); }
+.sft-avs { flex: 1 1 auto; min-width: 0; display: flex; gap: 0; overflow: hidden; padding-left: 4px; }
+.sft-avs .sft-av { margin-left: -4px; box-shadow: 0 0 0 2px var(--surface); }
+@media (max-width: 559px) { .sft-readbar { flex-basis: 36px; } .sft-avs .sft-av { margin-left: -7px; } .sft-readrow { gap: 8px; } }
+.sft-av { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--sft-c); color: #fff; font-size: 12.5px; font-weight: 700; line-height: 1; }
+.sft-av-off { background: var(--surface-3); color: var(--muted); }
+.sft-av-more { background: var(--surface-2); color: var(--ink-2); font-size: 12px; }
+.btn.sft-confirm-big { min-height: 48px; width: 100%; font-size: 16px; border: 2px solid var(--warn); background: var(--warn-soft); color: var(--ink); }
+.btn.sft-confirm-big:hover:not(:disabled) { background: var(--warn-soft); border-color: var(--warn); filter: brightness(.97); }
+.btn.sft-confirm-big .ico { color: var(--warn); }
+.sft-note.sft-st-bad .btn.sft-confirm-big { border-color: var(--bad); background: var(--bad-soft); }
+.sft-note.sft-st-bad .btn.sft-confirm-big .ico { color: var(--bad); }
+@media (min-width: 560px) { .btn.sft-confirm-big { width: auto; align-self: flex-end; padding: 0 24px; } }
+.sft-reader { gap: 10px; }
+.sft-reader-name { flex: 1 1 auto; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 今日モード等で使う旧来の確認ボタン */
 .btn.sft-confirm { margin-left: auto; min-height: 44px; padding: 0 14px; }
 .sft-confirm.sft-done { background: var(--ok-soft); border-color: var(--ok-soft); color: var(--ok); opacity: 1; }
 .sft-confirm:not(.sft-done) .ico { color: var(--accent); }
-@media (max-width: 559px) { .sft-confirm { flex: 1 1 100%; } }
 .sft-photo { display: block; width: 96px; height: 72px; padding: 0; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); cursor: zoom-in; }
 .sft-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sft-photo-big { display: block; width: 100%; max-height: 70vh; object-fit: contain; border-radius: var(--r-sm); background: var(--surface-2); }
@@ -296,12 +328,47 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
     const latest = K.getDoc("notes", noteId);
     const rb = (latest && latest.readBy) || [];
     if (rb.includes(sid)) { K.toast(K.staffName(sid) + "は確認済みです"); return; }
-    try { await W.patch("notes", noteId, { readBy: rb.concat(sid) }); } catch (e) { return; }
+    const readAt = Object.assign({}, (latest && latest.readAt) || {});
+    readAt[sid] = new Date().toISOString();
+    try { await W.patch("notes", noteId, { readBy: rb.concat(sid), readAt }); } catch (e) { return; }
     K.toast(K.staffName(sid) + "として確認しました", "ok", { action: { label: "元に戻す", onClick: async () => {
       const d = K.getDoc("notes", noteId);
       if (!d) return;
-      try { await W.patch("notes", noteId, { readBy: (d.readBy || []).filter((x) => x !== sid) }); } catch (e) {}
+      const ra = Object.assign({}, d.readAt || {}); delete ra[sid];
+      try { await W.patch("notes", noteId, { readBy: (d.readBy || []).filter((x) => x !== sid), readAt: ra }); } catch (e) {}
     } } });
+  }
+
+  // 連絡の日時：「今日 10:30」「昨日 21:10」「10/20(火)」
+  function noteWhen(iso) {
+    const t = new Date(iso);
+    if (isNaN(t)) return "";
+    const d = localIso(t), today = K.today(), hm = pad(t.getHours()) + ":" + pad(t.getMinutes());
+    if (d === today) return "今日 " + hm;
+    if (d === K.addDays(today, -1)) return "昨日 " + hm;
+    return K.fmt.date(d);
+  }
+  // 名前の頭文字（「（例）」などの前置きは除く）
+  const initialOf = (name) => (String(name || "").replace(/^[（(][^）)]*[）)]\s*/, "").trim().charAt(0) || "?");
+  // スタッフ色：color があればそれ、なければ名前から決める
+  function staffColorClass(s) {
+    if (s && s.color != null && s.color !== "") return colorClass(s.color);
+    const nm = (s && s.name) || "";
+    let hsh = 0; for (const c of nm) hsh = (hsh * 31 + c.charCodeAt(0)) >>> 0;
+    return colorClass(hsh % 6);
+  }
+  const isMyUnread = (n, cur) => (cur ? !(n.readBy || []).includes(cur) : !(n.readBy || []).length);
+  // 確認の進み具合：在籍スタッフ＋（退職者でも）確認済みの人
+  function readState(n) {
+    const rb = n.readBy || [];
+    const people = activeStaff().map((s) => ({ id: s.id, s }));
+    rb.forEach((id) => { if (!people.some((p) => p.id === id)) people.push({ id, s: staffById(id) }); });
+    const read = people.filter((p) => rb.includes(p.id));
+    const unread = people.filter((p) => !rb.includes(p.id));
+    // 確認した順（readAt があれば時刻順）
+    const ra = n.readAt || {};
+    read.sort((a, b) => String(ra[a.id] || "").localeCompare(String(ra[b.id] || "")) || rb.indexOf(a.id) - rb.indexOf(b.id));
+    return { read, unread, total: people.length };
   }
 
   /* ---------- 状態 ---------- */
@@ -381,9 +448,9 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       filterHost.textContent = "";
       const all = K.list("notes");
       const cur = K.currentStaffId();
-      const cnt = { all: all.length, unread: all.filter((n) => (cur ? !(n.readBy || []).includes(cur) : !(n.readBy || []).length)).length };
+      const cnt = { all: all.length, unread: all.filter((n) => isMyUnread(n, cur)).length, urgent: all.filter((n) => n.priority === "urgent").length };
       KINDS.forEach((k) => { cnt[k] = all.filter((n) => (KINDS.includes(n.kind) ? n.kind : "連絡") === k).length; });
-      [["all", "すべて"], ["unread", "未確認のみ"]].concat(KINDS.map((k) => [k, k])).forEach(([id, label]) =>
+      [["all", "すべて"], ["unread", "未確認のみ"], ["urgent", "緊急"]].concat(KINDS.map((k) => [k, k])).forEach(([id, label]) =>
         filterHost.appendChild(toggleBtn(label, noteFilter === id, () => { noteFilter = id; drawFilters(); drawList(); }, "", cnt[id])));
     }
 
@@ -402,41 +469,67 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
       }
       let rows = all;
       if (noteFilter === "unread") rows = rows.filter((n) => (cur ? !(n.readBy || []).includes(cur) : !(n.readBy || []).length));
-      else if (KINDS.includes(noteFilter)) rows = rows.filter((n) => n.kind === noteFilter);
-      rows.sort((a, b) =>
-        (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
-        (b.priority === "urgent" ? 1 : 0) - (a.priority === "urgent" ? 1 : 0) ||
-        String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      else if (noteFilter === "urgent") rows = rows.filter((n) => n.priority === "urgent");
+      else if (KINDS.includes(noteFilter)) rows = rows.filter((n) => (KINDS.includes(n.kind) ? n.kind : "連絡") === noteFilter);
+      // 自分が未確認の緊急 → 自分が未確認 → ピン留め → 新しい順
+      const rank = (n) => { const u = isMyUnread(n, cur); return u && n.priority === "urgent" ? 0 : u ? 1 : n.pinned ? 2 : 3; };
+      rows.sort((a, b) => rank(a) - rank(b) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
       if (!all.length) {
         listHost.appendChild(K.empty("まだ連絡はありません", "引き継ぎ・仕込みの指示・衛生の注意などがここに新しい順で並びます。上の「連絡を書く…」に本文を入れて「投稿する」を押すと最初の1件が追加されます。"));
         return;
       }
       if (!rows.length) {
-        listHost.appendChild(K.empty(noteFilter === "unread" ? "未確認の連絡はありません" : "この種類の連絡はありません",
+        listHost.appendChild(K.empty(noteFilter === "unread" ? "未確認の連絡はありません" : noteFilter === "urgent" ? "緊急の連絡はありません" : "この種類の連絡はありません",
           noteFilter === "unread" && !cur ? "ヘッダーで担当者を選ぶと、自分が未確認の連絡だけを表示できます。" : "絞り込みを「すべて」に戻すと全件を表示します。"));
         return;
       }
-      rows.forEach((n) => listHost.appendChild(noteCard(n, cur, staffActive)));
+      rows.forEach((n) => listHost.appendChild(noteCard(n, cur)));
     }
 
-    function noteCard(n, cur, staffActive) {
-      const readBy = n.readBy || [];
-      const readNames = readBy.map(sName);
-      const unread = staffActive.filter((s) => !readBy.includes(s.id)).length;
-      const iRead = cur && readBy.includes(cur);
+    function noteCard(n, cur) {
       const urgent = n.priority === "urgent";
       const kind = KINDS.includes(n.kind) ? n.kind : "連絡";
-      const confirmBtn = h("button", {
-        class: "btn sm sft-confirm" + (iRead ? " sft-done" : ""), type: "button", attrs: WR,
-        disabled: ro() || iRead,
+      const mine = isMyUnread(n, cur);
+      const rs = readState(n);
+      const allRead = rs.total > 0 && rs.unread.length === 0;
+      // 状態（帯の色＋文字ラベル）：緊急＞自分が未確認＞全員確認＞通常
+      const state = urgent ? "bad" : mine ? "warn" : allRead ? "ok" : "none";
+      const stateChips = [
+        urgent ? h("span", { class: "chip bad" }, K.icon("alert"), "緊急") : null,
+        mine ? h("span", { class: "chip warn", text: "未確認" }) : null,
+        !urgent && !mine && allRead ? h("span", { class: "chip ok" }, K.icon("check"), "全員確認") : null,
+      ];
+      // 2段目：本文（2行まで、タップで全文）
+      const body = h("p", { class: "sft-note-text sft-clamp", text: n.text || "" });
+      const more = h("button", { class: "sft-more", type: "button", hidden: true, text: "全文を見る" });
+      const toggle = () => { const open = body.classList.toggle("sft-clamp"); more.textContent = open ? "全文を見る" : "閉じる"; };
+      body.addEventListener("click", () => { if (!more.hidden) toggle(); });
+      more.addEventListener("click", toggle);
+      requestAnimationFrame(() => { if (body.scrollHeight > body.clientHeight + 2) { more.hidden = false; body.classList.add("sft-tappable"); } });
+      // 3段目：誰が確認したか
+      const pct = rs.total ? Math.round(rs.read.length / rs.total * 100) : 0;
+      const MAXD = 8;
+      const dots = rs.read.map((p) => h("span", { class: "sft-av " + staffColorClass(p.s), title: sName(p.id), text: initialOf(p.s ? p.s.name : "") }))
+        .concat(rs.unread.map((p) => h("span", { class: "sft-av sft-av-off", title: sName(p.id) + "（未確認）", text: initialOf(p.s ? p.s.name : "") })));
+      const shown = dots.slice(0, MAXD);
+      const readRow = h("button", { class: "sft-readrow", type: "button", "aria-label": "確認 " + rs.read.length + "/" + rs.total + "。確認した人を見る", onClick: () => openReaders(n) },
+        h("span", { class: "sft-readcount" }, h("span", { class: "sft-readlbl", text: "確認" }), h("b", { class: "num", text: rs.read.length + "/" + rs.total })),
+        h("span", { class: "sft-readbar sft-st-" + state, "aria-hidden": "true" }, h("i", { style: { width: pct + "%" } })),
+        h("span", { class: "sft-avs", "aria-hidden": "true" }, shown, dots.length > MAXD ? h("span", { class: "sft-av sft-av-more", text: "+" + (dots.length - MAXD) }) : null),
+        K.icon("chev"));
+      // 自分が未確認のときだけ大きな確認ボタンを1つ（未選択時は名前を選ぶボタン）
+      const showBtn = cur ? mine : rs.unread.length > 0;   // 担当者未選択なら、未確認の人が残っている限り「名前を選んで確認」
+      const confirmBtn = showBtn ? h("button", {
+        class: "btn sft-confirm-big", type: "button", attrs: WR, disabled: ro(),
         onClick: () => (cur ? markRead(n.id, cur) : pickReader(n)),
-      }, K.icon("check"), iRead ? K.staffName(cur) + "は確認済み" : cur ? K.staffName(cur) + "として確認" : "確認する（名前を選ぶ）");
-      return h("article", { class: "card sft-note" + (urgent ? " is-flag bad" : n.pinned ? " is-flag" : "") },
+      }, K.icon("check"), cur ? "確認しました" : "確認する（名前を選ぶ）") : null;
+      return h("article", { class: "card sft-note sft-st-" + state + (n.pinned ? " sft-is-pinned" : "") },
         h("div", { class: "sft-note-top" },
-          urgent ? h("span", { class: "chip bad" }, K.icon("alert"), "緊急") : null,
-          h("span", { class: "chip", text: kind }),
-          n.pinned ? h("span", { class: "chip" }, K.icon("pin"), "ピン留め") : null,
+          h("div", { class: "sft-note-who" },
+            h("span", { class: "sft-when num", text: noteWhen(n.createdAt) }),
+            h("span", { class: "sft-sep", text: "·" }),
+            h("span", { class: "sft-poster", text: sName(n.staffId) })),
           h("div", { class: "sft-note-tools" },
             h("button", {
               class: "icon-btn", type: "button", title: n.pinned ? "ピンを外す" : "ピン留め",
@@ -450,15 +543,29 @@ ${[0, 1, 2, 3, 4, 5].map((i) => `.sft-col${i}{--sft-c:var(--staff-${i + 1});--sf
                 try { await W.del("notes", n.id); K.toast("削除しました"); } catch (e) {}
               },
             }, K.icon("trash")))),
-        h("p", { class: "sft-note-text", text: n.text || "" }),
+        h("div", { class: "sft-note-chips" }, stateChips, h("span", { class: "chip", text: kind }), n.pinned ? h("span", { class: "chip" }, K.icon("pin"), "ピン留め") : null),
+        body, more,
         n.photo ? h("button", { class: "sft-photo", type: "button", "aria-label": "写真を拡大", onClick: () => openPhoto(n.photo) }, photoImg(n.photo)) : null,
-        h("div", { class: "sft-note-foot" },
-          h("div", { class: "sft-note-meta" },
-            h("div", null, h("b", { text: sName(n.staffId) }), h("span", { class: "sft-sep", text: "·" }), h("span", { text: relTime(n.createdAt) }),
-              staffActive.length ? h("span", { class: "sft-sep", text: "·" }) : null,
-              staffActive.length ? (unread ? h("span", { class: "sft-unread", text: "未確認 " + unread + "人" }) : h("span", { class: "sft-allread", text: "全員確認済み" })) : null),
-            readNames.length ? h("div", { text: "確認：" + readNames.join("、") }) : null),
-          confirmBtn));
+        readRow,
+        confirmBtn);
+    }
+
+    // 確認した人の一覧（確認済み：名前（時刻）／未確認：名前）
+    function openReaders(n0) {
+      const n = K.getDoc("notes", n0.id) || n0;
+      const rs = readState(n);
+      const ra = n.readAt || {};
+      const row = (p, read) => h("div", { class: "li sft-reader" },
+        h("span", { class: "sft-av " + (read ? staffColorClass(p.s) : "sft-av-off"), text: initialOf(p.s ? p.s.name : "") }),
+        h("span", { class: "sft-reader-name", text: sName(p.id) }),
+        read ? h("span", { class: "num small muted", text: ra[p.id] ? noteWhen(ra[p.id]) : "時刻の記録なし" }) : h("span", { class: "chip warn", text: "未確認" }));
+      K.sheet({ title: "確認した人 " + rs.read.length + "/" + rs.total, body: h("div", { class: "stack" },
+        h("p", { class: "small muted", style: "margin:0", text: noteWhen(n.createdAt) + "・" + sName(n.staffId) + "：" + String(n.text || "").slice(0, 40) + (String(n.text || "").length > 40 ? "…" : "") }),
+        h("h3", { class: "sft-my-h", text: "確認済み（" + rs.read.length + "人）" }),
+        rs.read.length ? h("div", { class: "list" }, rs.read.map((p) => row(p, true))) : h("p", { class: "muted small", style: "margin:0", text: "まだ誰も確認していません" }),
+        h("h3", { class: "sft-my-h", text: "未確認（" + rs.unread.length + "人）" }),
+        rs.unread.length ? h("div", { class: "list" }, rs.unread.map((p) => row(p, false))) : h("p", { class: "small", style: "margin:0;color:var(--ok);font-weight:700", text: "全員が確認しました" })),
+        actions: [{ label: "閉じる", kind: "ghost" }] });
     }
 
     // 担当者未選択時：誰として確認するかを選ばせる（共用端末での名義違い防止）

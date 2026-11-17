@@ -5,7 +5,9 @@
   const W = K.scope("inventory");
   const h = K.h;
 
-  const CATS = ["肉", "魚", "野菜", "乾物", "調味料", "乳製品", "酒類", "消耗品", "その他"];
+  // 品目カテゴリは店ごとに編集できる（core: K.categories("item")）。一覧に無い名前は「その他」扱い
+  const cats = () => K.categories("item");
+  const catOf = (x) => { const c = x && x.category; return c && cats().includes(c) ? c : "その他"; };
   const LOCS = ["冷蔵", "冷凍", "常温"];
   const STATUS = {
     draft: { label: "下書き", kind: "" },
@@ -41,7 +43,15 @@
 .inv-fpanel .seg-btn { min-height: 40px; font-family: inherit; }
 
 /* 在庫一覧：〜599px＝行カード（右に±）、600〜899px＝5列表、900px〜＝7列表（一覧の幅で判定） */
-.inv-items { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); overflow: hidden; }
+.inv-items { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); }
+.inv-items > :first-child { border-radius: var(--r) var(--r) 0 0; }
+.inv-items > :last-child { border-radius: 0 0 var(--r) var(--r); }
+.inv-grp { position: sticky; z-index: 4; top: calc(env(safe-area-inset-top, 0px) + var(--hdr) + 46px); background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.inv-grp + .inv-it { border-top: 0; }
+.inv-grp-in { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 2px; padding: 8px 16px; font-size: 13px; color: var(--ink-2); min-height: 40px; }
+.inv-grp-in b { font-size: 15px; color: var(--ink); margin-right: 4px; }
+.inv-grp-bad { color: var(--bad); font-weight: 700; }
+.inv-catedit { flex: none; min-height: 40px; }
 .inv-it { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name name step" "stock st step"; gap: 0 10px; padding: 8px 12px 8px 16px; align-items: center; min-width: 0; min-height: 72px; }
 .inv-it + .inv-it { border-top: 1px solid var(--line); }
 .inv-it:not(.inv-th):hover { background: var(--surface-2); }
@@ -252,7 +262,7 @@
   function sortItems(list) {
     return list.slice().sort((a, b) =>
       order(LOCS, a.location) - order(LOCS, b.location) ||
-      order(CATS, a.category) - order(CATS, b.category) ||
+      order(cats(), catOf(a)) - order(cats(), catOf(b)) ||
       String(a.name || "").localeCompare(String(b.name || ""), "ja"));
   }
   const fmtQty = (n) => { const v = r2(n); return Number.isInteger(v) ? K.fmt.num(v) : K.fmt.num(v, 2).replace(/0$/, ""); };
@@ -405,7 +415,7 @@
     const isNew = !it;
     const d = it || { name: "", category: "野菜", unit: "", par: 0, stock: 0, cost: 0, supplierId: "", location: "冷蔵" };
     const name = K.input({ value: d.name, placeholder: "例：玉ねぎ", maxlength: 60 });
-    const cat = K.select(CATS, d.category || "その他");
+    const cat = K.select(cats(), catOf(d));
     // 単位：よく使う単位は select、それ以外は「その他」で自由入力（datalist の▼は使わない）
     const UNITS = ["kg", "g", "L", "ml", "個", "本", "玉", "切", "尾", "束", "枚", "袋", "パック", "箱", "瓶", "缶", "丁"];
     const curU = String(d.unit || "").trim();
@@ -526,8 +536,8 @@
       const all = items();
       chips.textContent = "";
       const counts = {};
-      all.forEach((x) => { counts[x.category] = (counts[x.category] || 0) + 1; });
-      const used = CATS.filter((c) => counts[c]).concat(Object.keys(counts).filter((c) => !CATS.includes(c)));
+      all.forEach((x) => { const c = catOf(x); counts[c] = (counts[c] || 0) + 1; });
+      const used = cats().filter((c) => counts[c]);
       if (stockUI.cat && !counts[stockUI.cat]) stockUI.cat = "";
       // 「すべて」は絞り込みが何も無いときだけ選択表示。状態の絞り込み中はその解除チップを先頭に出す
       chips.appendChild(h("button", { class: "fchip", attrs: { "aria-pressed": String(!stockUI.cat && !stockUI.state) },
@@ -540,6 +550,7 @@
           onClick: () => { stockUI.cat = stockUI.cat === c.v ? "" : c.v; drawChips(); drawList(); },
         }, c.l, h("span", { class: "n", text: String(c.n) })));
       });
+      chips.appendChild(h("button", { class: "btn ghost inv-catedit", attrs: WA, disabled: ro(), onClick: () => K.editCategories("item", { counts }) }, K.icon("edit"), "カテゴリを編集"));
     }
     function drawList() {
       listBox.textContent = "";
@@ -550,7 +561,7 @@
       }
       const q = stockUI.q.toLowerCase();
       const rows = sortItems(all).filter((x) =>
-        (!stockUI.cat || x.category === stockUI.cat) &&
+        (!stockUI.cat || catOf(x) === stockUI.cat) &&
         (!stockUI.loc || x.location === stockUI.loc) &&
         (!q || String(x.name || "").toLowerCase().includes(q)) &&
         stateMatch(x));
@@ -564,7 +575,20 @@
         h("span", { role: "columnheader", style: "text-align:right", text: "現在庫" }), h("span", { role: "columnheader", style: "text-align:right", text: "適正" }),
         h("span", { class: "inv-h-cost", role: "columnheader", style: "text-align:right", text: "単価" }), h("span", { role: "columnheader", text: "状態" }),
         h("span", { role: "columnheader", style: "text-align:right", text: "使用・追加" })));
-      rows.forEach((x) => {
+      // カテゴリごとの区切り（見出しは sticky）。区切りの中は従来の並び順のまま。0件の区切りは出さない
+      const byCat = {};
+      rows.forEach((x) => { const c = catOf(x); (byCat[c] = byCat[c] || []).push(x); });
+      cats().filter((c) => byCat[c]).forEach((c) => {
+        const gr = byCat[c];
+        const bad = gr.filter((x) => itemState(x).kind === "bad").length;
+        const val = gr.reduce((sm, x) => sm + num(x.stock) * num(x.cost), 0);
+        box.appendChild(h("div", { class: "inv-grp", role: "row" }, h("span", { role: "rowheader", class: "inv-grp-in" },
+          h("b", { text: c }), h("span", { class: "num", text: " " + gr.length + "品" }),
+          h("span", { class: bad ? "inv-grp-bad" : "", text: "・不足 " + bad }),
+          h("span", { text: "・在庫金額 " }), h("span", { class: "num", text: K.fmt.yen(val) }))));
+        gr.forEach((x) => drawRow(x));
+      });
+      function drawRow(x) {
         const st = itemState(x);
         const u = x.unit || "";
         const step = stepFor(x);
@@ -572,7 +596,7 @@
           h("div", { class: "inv-c-name", role: "cell" }, h("button", { class: "inv-name", onClick: () => openItem(x), "aria-label": (x.name || "品目") + " を編集" },
             h("span", { class: "inv-nm", text: x.name || "（名称なし）" }),
             h("small", { text: K.fmt.yen(num(x.cost)) + (u ? "/" + u : "") }))),
-          h("div", { class: "inv-c-cat", role: "cell", text: [x.category, x.location].filter(Boolean).join("・"), title: x.supplierId ? supName(x.supplierId) : "" }),
+          h("div", { class: "inv-c-cat", role: "cell", text: [catOf(x), x.location].filter(Boolean).join("・"), title: x.supplierId ? supName(x.supplierId) : "" }),
           h("div", { class: "inv-c-stock", role: "cell" },
             h("span", { class: "inv-big" + (st.kind === "ok" ? "" : " " + st.kind), text: fmtQty(x.stock) }), h("span", { class: "inv-u", text: u }),
             h("span", { class: "inv-mpar" }, "適正 ", h("span", { class: "num", text: fmtQty(x.par) }), u)),
@@ -582,7 +606,7 @@
           h("div", { class: "inv-c-step", role: "cell" },
             h("button", { class: "btn inv-sb", text: "−" + fmtQty(step), attrs: roAttr({ "aria-label": x.name + " を" + fmtQty(step) + u + "減らす" }), onClick: () => bump(x.id, -1) }),
             h("button", { class: "btn inv-sb inv-plus", text: "＋" + fmtQty(step), attrs: roAttr({ "aria-label": x.name + " を" + fmtQty(step) + u + "増やす" }), onClick: () => bump(x.id, 1) }))));
-      });
+      }
       listBox.appendChild(box);
       listBox.appendChild(h("p", { class: "muted small", style: "margin:0", text: "±はその場で保存されます（使用・ロス分の調整に）。直後の通知の「元に戻す」で取り消せます。品目名をタップすると編集できます。" }));
     }
@@ -711,7 +735,7 @@
           });
           inputs.push(inp);
           row.appendChild(h("div", { class: "inv-crow" },
-            h("div", { class: "inv-cname" }, h("b", null, ck, h("span", { text: x.name || "（名称なし）" })), h("span", { class: "muted small", text: (x.category || "") + "・単位 " + (x.unit || "—") }), msg),
+            h("div", { class: "inv-cname" }, h("b", null, ck, h("span", { text: x.name || "（名称なし）" })), h("span", { class: "muted small", text: catOf(x) + "・単位 " + (x.unit || "—") }), msg),
             h("div", { class: "inv-book" }, "帳簿", h("br"), h("span", { class: "num", text: fmtQty(x.stock) })),
             h("div", { class: "inv-cwrap" }, inp, x.unit ? h("span", { class: "inv-cu", attrs: { "aria-hidden": "true" }, text: x.unit }) : null)));
           paint();
@@ -1374,6 +1398,7 @@
         { id: "waste", label: "ロス", render: renderWaste },
       ]);
       K.on("readonly", refreshAll);
+      K.on("settings", refreshAll); // カテゴリの並び・名前が変わったら描き直す
     },
   });
 
@@ -1646,6 +1671,21 @@
     if (cnt.date === lastToday && !cnt.dirty) { cnt.date = d; cnt.loadedFor = null; }
     lastToday = d;
     refreshAll();
+  });
+  // カテゴリの名前変更・削除を自分の items に反映（renamed は新しい名前へ、removed は「その他」へ）
+  let catBusy = false;
+  K.on("categories", async (ev) => {
+    if (!ev || ev.kind !== "item" || catBusy || ro()) { refreshAll(); return; }
+    const ren = {}; (ev.renamed || []).forEach((r) => { if (r && r.from && r.to && r.from !== r.to) ren[r.from] = r.to; });
+    const rem = new Set(ev.removed || []);
+    const targets = items().map((x) => ({ x, to: ren[x.category] || (rem.has(x.category) ? "その他" : null) })).filter((t) => t.to && t.to !== t.x.category);
+    if (!targets.length) { refreshAll(); return; }
+    catBusy = true;
+    try {
+      const t = nowIso();
+      for (const { x, to } of targets) await W.patch("items", x.id, { category: to, updatedAt: t });
+      K.toast(targets.length + "品目のカテゴリを更新しました", "ok");
+    } catch (e) { /* core が toast 済み */ } finally { catBusy = false; refreshAll(); }
   });
   // ナビのバッジ（不足品目数）。タブ未表示でも出すため mount 外で購読
   K.watch("items", (rows) => K.badge("inventory", rows.filter((x) => itemState(x).kind === "bad").length, "bad"));

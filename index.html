@@ -354,6 +354,17 @@ input, select, textarea { scroll-margin-bottom: 140px; scroll-margin-top: 120px;
 .busy-card .btn { min-width: 220px; }
 @media (max-width: 360px) { .logo-text { display: none; } }
 
+/* ===== カテゴリ編集（統括） ===== */
+.cat-ed-list { display: flex; flex-direction: column; gap: 6px; }
+.cat-ed-row { display: flex; align-items: center; gap: 6px; }
+.cat-ed-row .inp { flex: 1 1 auto; min-width: 0; }
+.cat-ed-row.is-fixed { min-height: 44px; padding: 0 8px; background: var(--bg); border-radius: var(--r-sm); justify-content: space-between; }
+.cat-ed-move { display: flex; gap: 2px; }
+.cat-ed-move .icon-btn { width: 36px; height: 44px; font-weight: 700; }
+.cat-ed-cnt { width: 3.2em; text-align: right; flex: none; }
+.cat-ed-add { display: flex; gap: 8px; }
+.cat-ed-add .inp { flex: 1 1 auto; min-width: 0; }
+
 /* ===== データの保存・バックアップ（設定シート内・統括） ===== */
 .data-sec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; display: flex; flex-direction: column; gap: 10px; }
 .data-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
@@ -473,12 +484,12 @@ body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 <div id="toasts" aria-live="polite"></div>
 <div id="sheets"></div>
 
-<script src="core.js?v=f5016f2ddf"></script>
-<script src="mod-sales.js?v=f5016f2ddf"></script>
-<script src="mod-inventory.js?v=f5016f2ddf"></script>
-<script src="mod-recipe.js?v=f5016f2ddf"></script>
-<script src="mod-shift.js?v=f5016f2ddf"></script>
-<script src="mod-mypage.js?v=f5016f2ddf"></script>
+<script src="core.js?v=206b135370"></script>
+<script src="mod-sales.js?v=206b135370"></script>
+<script src="mod-inventory.js?v=206b135370"></script>
+<script src="mod-recipe.js?v=206b135370"></script>
+<script src="mod-shift.js?v=206b135370"></script>
+<script src="mod-mypage.js?v=206b135370"></script>
 <script>
 /* ===== 独立アプリ（PWA）：オフライン起動・更新通知・ホーム画面への追加案内 — 統括 ===== */
 (function () {

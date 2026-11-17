@@ -5,20 +5,29 @@
   const W = K.scope("recipe");
   const h = K.h;
 
-  const CATS = ["前菜", "主菜", "ご飯・麺", "汁物", "デザート", "ドリンク", "仕込み", "その他"];
+  // 店のレシピのカテゴリは core の K.categories("recipe") に従う（並び順＝一覧の表示順。最後は「その他」）
+  const shopCats = () => K.categories("recipe");
   const ALLERGENS = ["卵", "乳", "小麦", "えび", "かに", "そば", "落花生", "くるみ"];
   const MY_CATS = ["賄い", "試作", "自分の料理", "家庭料理", "勉強・メモ"];
+  const myCats = () => MY_CATS.concat(shopCats().filter((c) => !MY_CATS.includes(c)));
+  // 表示用のカテゴリ：旧「主菜」は「メイン」、一覧に無い名前は「その他」
+  function catOf(r, mine) {
+    let c = String((r && r.category) || "").trim() || "その他";
+    if (c === "主菜") c = "メイン";
+    const list = mine ? myCats() : shopCats();
+    return list.includes(c) ? c : "その他";
+  }
 
   /* ---------- 保存先（店のレシピ＝recipes ／ マイレシピ＝K.my "recipes"）。画面は共通で保存先だけ切り替える ---------- */
   let shopLoaded = false;
   const SHOP = {
-    key: "shop", label: "店のレシピ", short: "店", cats: CATS,
+    key: "shop", label: "店のレシピ", short: "店", get cats() { return shopCats(); },
     list: () => K.list("recipes"), get: (id) => K.getDoc("recipes", id),
     add: (d) => W.add("recipes", d), put: (id, d) => W.put("recipes", id, d), patch: (id, d) => W.patch("recipes", id, d), del: (id) => W.del("recipes", id),
     ro: () => K.readOnly(),
   };
   const MINE = {
-    key: "mine", label: "マイレシピ", short: "マイ", cats: MY_CATS.concat(CATS),
+    key: "mine", label: "マイレシピ", short: "マイ", get cats() { return myCats(); },
     list: () => K.my.list("recipes"), get: (id) => K.my.get("recipes", id),
     add: (d) => K.my.add("recipes", d), put: (id, d) => K.my.put("recipes", id, d), patch: (id, d) => K.my.patch("recipes", id, d), del: (id) => K.my.del("recipes", id),
     ro: () => false,
@@ -56,7 +65,24 @@
 .rcp-cards { display: grid; grid-template-columns: minmax(0,1fr); gap: 10px; }
 @media (min-width: 560px) { .rcp-cards { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 .rcp-tbl-wrap { display: none; }
-@media (min-width: 900px) { .rcp-cards { display: none; } .rcp-tbl-wrap { display: block; } }
+@media (min-width: 900px) { .rcp-grps.rcp-grps-shop { display: none; } .rcp-tbl-wrap { display: block; } }
+/* v3.3 カテゴリの区切り（見出しはスクロール中も上に残る） */
+.rcp-grps { display: flex; flex-direction: column; gap: 10px; }
+.rcp-grp { display: flex; flex-direction: column; gap: 8px; }
+.rcp-grp-h { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--hdr) + 47px); z-index: 4; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 4px 6px; background: var(--bg); border-bottom: 2px solid var(--line-strong); }
+.rcp-grp-n { font-family: var(--f-display); font-weight: 700; font-size: 17px; color: var(--ink); }
+.rcp-grp-s { font-size: 13.5px; color: var(--ink-2); font-weight: 700; }
+.rcp-grp-h.is-over { border-bottom-color: var(--bad); }
+.rcp-grp-h.is-over .rcp-grp-r, .rcp-grp-x { color: var(--bad); }
+.rcp-grp-x { font-size: 13px; margin-left: 2px; }
+.rcp-grp-tr td { padding: 0; border-top: 0; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--hdr) + 47px); z-index: 3; }
+.rcp-grp-tr .rcp-grp-h { position: static; padding: 10px 12px 8px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.rcp-grp-tr .rcp-grp-h.is-over { background: var(--bad-soft); }
+@media (min-width: 900px) { .rcp-tbl-wrap.tblwrap { overflow: visible; } }
+.rcp-catrow { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.rcp-catrow .fchips { flex: 1 1 auto; min-width: 0; }
+.rcp-catrow .rcp-catedit { flex: none; min-height: 44px; }
+@media (max-width: 559px) { .rcp-catrow .rcp-catedit { width: 44px; padding: 0; } .rcp-catrow .rcp-catedit .rcp-wide { display: none; } }
 .rcp-card { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 12px; align-items: start; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: 12px 14px; cursor: pointer; color: var(--ink); min-height: 44px; }
 .rcp-card:hover { border-color: var(--line-strong); background: var(--surface); }
 .rcp-card-name { font-weight: 700; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
@@ -500,6 +526,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
   let query = "";
   const sorts = { shop: "rate", mine: "new" };
   let sumLine = null;
+  let catEditBtn = null;
   let viewbarEl = null;
   let listHost = null, sumHost = null, bandHost = null, catHost = null, tagHost = null, sortHost = null, headHost = null, searchInp = null, viewBtns = [];
   const curStore = () => (view === "mine" ? MINE : SHOP);
@@ -515,9 +542,10 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
   function drawCats(rowsAll) {
     if (!catHost) return;
     catHost.textContent = "";
-    const cats = (view === "mine" ? MINE.cats : CATS).filter((c) => rowsAll.some((r) => (r.category || "その他") === c) || c === cat);
+    const mineV = view === "mine";
+    const cats = (mineV ? MINE.cats : SHOP.cats).filter((c) => rowsAll.some((r) => catOf(r, mineV) === c) || c === cat);
     ["すべて"].concat(cats).forEach((c) => {
-      const cnt = c === "すべて" ? rowsAll.length : rowsAll.filter((r) => (r.category || "その他") === c).length;
+      const cnt = c === "すべて" ? rowsAll.length : rowsAll.filter((r) => catOf(r, mineV) === c).length;
       catHost.appendChild(h("button", { class: "fchip", type: "button", attrs: { "aria-pressed": String(c === cat) },
         onClick: () => { cat = c; renderList(); } }, c, h("span", { class: "n", text: String(cnt) })));
     });
@@ -559,6 +587,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     const ro = store.ro();
     const t = target();
     drawHead(); drawSort();
+    if (catEditBtn) { catEditBtn.hidden = mine; catEditBtn.disabled = K.readOnly(); }
     if (searchInp) searchInp.placeholder = mine ? "名前・#タグで検索" : "料理名で検索";
 
     const lv = all.map((r) => ({ r, c: live(r), stale: isStale(r), fav: mine ? !!r.fav : isFavShop(r.id) }));
@@ -623,7 +652,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     }
 
     let rows = lv;
-    if (cat !== "すべて") rows = rows.filter((x) => (x.r.category || "その他") === cat);
+    if (cat !== "すべて") rows = rows.filter((x) => catOf(x.r, mine) === cat);
     if (mine && tagSel) rows = rows.filter((x) => (x.r.tags || []).includes(tagSel));
     const q = query.trim().toLowerCase().replace(/^[#＃]/, "");
     if (q) rows = rows.filter((x) => String(x.r.name || "").toLowerCase().includes(q) || (x.r.tags || []).some((tg) => String(tg).toLowerCase().includes(q)));
@@ -651,23 +680,43 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     const thumbOf = (r) => { const ph0 = recipePhotos(r)[0]; return ph0 ? photoImg(ph0, "") : h("span", { class: "rcp-ph-none" }, K.icon("book")); };
     const nameLine = (r, fav) => h("div", { class: "rcp-card-name" }, fav ? h("span", { class: "rcp-star", "aria-label": "お気に入り", text: "★ " }) : null, r.name || "（名前なし）");
 
+    // カテゴリごとの区切り（並び順はカテゴリの順。区切りの中は今の並べ替えのまま。0件の区切りは出さない）
+    const order = (mine ? MINE.cats : SHOP.cats);
+    const groups = order.map((g) => ({ g, rows: rows.filter((x) => catOf(x.r, mine) === g) })).filter((x) => x.rows.length);
+    const grpInfo = (rs) => {
+      const rated = rs.filter((x) => x.c.costRate != null && x.c.costRate <= 3);
+      const avg = rated.length ? rated.reduce((s2, x) => s2 + x.c.costRate, 0) / rated.length : null;
+      return { avg, over: avg != null && avg > t };
+    };
+    const grpHead = (g, rs, tag) => {
+      const gi = grpInfo(rs);
+      return h(tag || "div", { class: "rcp-grp-h" + (gi.over && !mine ? " is-over" : ""), role: "heading", "aria-level": "3" },
+        h("span", { class: "rcp-grp-n", text: g }),
+        h("span", { class: "rcp-grp-s" }, h("span", { class: "num", text: String(rs.length) }), "品",
+          !mine && gi.avg != null ? ["・平均原価率 ", h("span", { class: "num rcp-grp-r", text: K.fmt.pct(gi.avg) })] : null,
+          !mine && gi.over ? h("span", { class: "rcp-grp-x", text: "（目標超え）" }) : null));
+    };
+
     if (mine) {
-      const cards = h("div", { class: "rcp-cards rcp-cards-mine" });
-      rows.forEach(({ r, c, stale: st, fav }) => {
-        cards.appendChild(h("button", { class: "rcp-card has-thumb", type: "button", onClick: () => openDetail(r.id, MINE) },
-          h("span", { class: "rcp-thumb" }, thumbOf(r)),
-          h("div", { style: { minWidth: "0" } },
-            nameLine(r, fav),
-            h("div", { class: "rcp-card-meta" },
-              h("span", { class: "chip", text: r.category || "その他" }),
-              (r.tags || []).slice(0, 4).map((tg) => h("span", { class: "chip rcp-tag", text: "#" + tg })),
-              st ? h("span", { class: "chip warn", text: "原価更新あり" }) : null)),
-          h("div", { class: "rcp-cost-big" }, h("span", { class: "rcp-rate-l", text: "1人前原価" }), h("span", { class: "num", text: K.fmt.yen(c.cost) })),
-          h("div", { class: "rcp-mine-money" },
-            n(r.price) > 0 ? h("span", null, "売価 ", h("b", { class: "num", text: K.fmt.yen(r.price) }), c.costRate != null ? h("span", { class: "num", text: "（原価率 " + K.fmt.pct(c.costRate) + "）" }) : null) : h("span", { text: "売価なし" }),
-            r.updatedAt ? h("span", null, "更新 ", h("span", { class: "num", text: fmtDay(r.updatedAt) })) : null)));
+      const wrap = h("div", { class: "rcp-grps" });
+      groups.forEach(({ g, rows: rs }) => {
+        const cards = h("div", { class: "rcp-cards rcp-cards-mine" });
+        rs.forEach(({ r, c, stale: st, fav }) => {
+          cards.appendChild(h("button", { class: "rcp-card has-thumb", type: "button", onClick: () => openDetail(r.id, MINE) },
+            h("span", { class: "rcp-thumb" }, thumbOf(r)),
+            h("div", { style: { minWidth: "0" } },
+              nameLine(r, fav),
+              h("div", { class: "rcp-card-meta" },
+                (r.tags || []).slice(0, 4).map((tg) => h("span", { class: "chip rcp-tag", text: "#" + tg })),
+                st ? h("span", { class: "chip warn", text: "原価更新あり" }) : null)),
+            h("div", { class: "rcp-cost-big" }, h("span", { class: "rcp-rate-l", text: "1人前原価" }), h("span", { class: "num", text: K.fmt.yen(c.cost) })),
+            h("div", { class: "rcp-mine-money" },
+              n(r.price) > 0 ? h("span", null, "売価 ", h("b", { class: "num", text: K.fmt.yen(r.price) }), c.costRate != null ? h("span", { class: "num", text: "（原価率 " + K.fmt.pct(c.costRate) + "）" }) : null) : h("span", { text: "売価なし" }),
+              r.updatedAt ? h("span", null, "更新 ", h("span", { class: "num", text: fmtDay(r.updatedAt) })) : null)));
+        });
+        wrap.appendChild(h("section", { class: "rcp-grp", "aria-label": g }, grpHead(g, rs), cards));
       });
-      listHost.append(h("div", { class: "rcp-count" }, h("span", { class: "num", text: String(rows.length) }), "件を表示"), cards);
+      listHost.append(h("div", { class: "rcp-count" }, h("span", { class: "num", text: String(rows.length) }), "件を表示"), wrap);
       return;
     }
 
@@ -675,38 +724,41 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
       ? h("span", { class: "rcp-rate-v none", text: "売価未設定" })
       : h("span", { class: "rcp-rate-v num " + rateClass(c.costRate), text: K.fmt.pct(c.costRate) });
 
-    // スマホ：カード
-    const cards = h("div", { class: "rcp-cards" });
-    rows.forEach(({ r, c, stale: st, fav }) => {
-      cards.appendChild(h("button", { class: "rcp-card has-thumb", type: "button", onClick: () => openDetail(r.id, SHOP) },
-        h("span", { class: "rcp-thumb" }, thumbOf(r)),
-        h("div", { style: { minWidth: "0" } },
-          nameLine(r, fav),
-          h("div", { class: "rcp-card-meta" },
-            h("span", { class: "chip", text: r.category || "その他" }),
-            st ? h("span", { class: "chip warn", text: "原価更新あり" }) : null)),
-        h("div", { class: "rcp-rate" }, h("span", { class: "rcp-rate-l", text: "原価率" }), rateNum(c)),
-        h("div", { class: "rcp-card-money" },
-          h("span", null, "売価 ", h("b", { class: "num", text: n(r.price) > 0 ? K.fmt.yen(r.price) : "—" })),
-          h("span", null, "原価 ", h("b", { class: "num", text: K.fmt.yen(c.cost) })),
-          c.profit != null ? h("span", null, "粗利 ", h("b", { class: "num", text: K.fmt.yen(c.profit) })) : null),
-        c.costRate != null ? gauge(c.costRate) : null));
-    });
-
-    // PC：表
+    // スマホ・タブレット：カテゴリごとのカード
+    const cardWrap = h("div", { class: "rcp-grps rcp-grps-shop" });
+    // PC：表（カテゴリの区切り行を入れる）
     const tbody = h("tbody");
-    rows.forEach(({ r, c, stale: st, fav }) => {
-      tbody.appendChild(h("tr", { class: "click", tabindex: "0", onClick: () => openDetail(r.id, SHOP), onKeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(r.id, SHOP); } } },
-        h("td", null, h("span", { class: "rcp-tname-wrap" },
-          h("span", { class: "rcp-tthumb" }, recipePhotos(r)[0] ? photoImg(recipePhotos(r)[0], "") : h("span", { class: "rcp-ph-none" })),
-          fav ? h("span", { class: "rcp-star", "aria-label": "お気に入り", text: "★", style: { marginRight: "6px" } }) : null,
-          h("span", { class: "rcp-tname", text: r.name || "（名前なし）" }), st ? h("span", { class: "chip warn", style: { marginLeft: "8px" }, text: "原価更新あり" }) : null)),
-        h("td", null, h("span", { class: "chip", text: r.category || "その他" })),
-        h("td", { class: "r num", text: n(r.price) > 0 ? K.fmt.yen(r.price) : "—" }),
-        h("td", { class: "r num", text: K.fmt.yen(c.cost) }),
-        h("td", { class: "r" }, c.costRate == null ? h("span", { class: "chip", text: "売価未設定" })
-          : h("span", { class: "rcp-trate" }, gauge(c.costRate), h("span", { class: "num " + rateClass(c.costRate), style: { color: "var(--" + rateClass(c.costRate) + ")" }, text: K.fmt.pct(c.costRate) }))),
-        h("td", { class: "r num", text: c.profit == null ? "—" : K.fmt.yen(c.profit) })));
+    groups.forEach(({ g, rows: rs }) => {
+      const cards = h("div", { class: "rcp-cards" });
+      rs.forEach(({ r, c, stale: st, fav }) => {
+        cards.appendChild(h("button", { class: "rcp-card has-thumb", type: "button", onClick: () => openDetail(r.id, SHOP) },
+          h("span", { class: "rcp-thumb" }, thumbOf(r)),
+          h("div", { style: { minWidth: "0" } },
+            nameLine(r, fav),
+            st ? h("div", { class: "rcp-card-meta" }, h("span", { class: "chip warn", text: "原価更新あり" })) : null),
+          h("div", { class: "rcp-rate" }, h("span", { class: "rcp-rate-l", text: "原価率" }), rateNum(c)),
+          h("div", { class: "rcp-card-money" },
+            h("span", null, "売価 ", h("b", { class: "num", text: n(r.price) > 0 ? K.fmt.yen(r.price) : "—" })),
+            h("span", null, "原価 ", h("b", { class: "num", text: K.fmt.yen(c.cost) })),
+            c.profit != null ? h("span", null, "粗利 ", h("b", { class: "num", text: K.fmt.yen(c.profit) })) : null),
+          c.costRate != null ? gauge(c.costRate) : null));
+      });
+      cardWrap.appendChild(h("section", { class: "rcp-grp", "aria-label": g }, grpHead(g, rs), cards));
+
+      tbody.appendChild(h("tr", { class: "rcp-grp-tr" }, h("td", { attrs: { colspan: "6" } }, grpHead(g, rs))));
+      rs.forEach(({ r, c, stale: st, fav }) => {
+        tbody.appendChild(h("tr", { class: "click", tabindex: "0", onClick: () => openDetail(r.id, SHOP), onKeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(r.id, SHOP); } } },
+          h("td", null, h("span", { class: "rcp-tname-wrap" },
+            h("span", { class: "rcp-tthumb" }, recipePhotos(r)[0] ? photoImg(recipePhotos(r)[0], "") : h("span", { class: "rcp-ph-none" })),
+            fav ? h("span", { class: "rcp-star", "aria-label": "お気に入り", text: "★", style: { marginRight: "6px" } }) : null,
+            h("span", { class: "rcp-tname", text: r.name || "（名前なし）" }), st ? h("span", { class: "chip warn", style: { marginLeft: "8px" }, text: "原価更新あり" }) : null)),
+          h("td", null, h("span", { class: "chip", text: catOf(r, false) })),
+          h("td", { class: "r num", text: n(r.price) > 0 ? K.fmt.yen(r.price) : "—" }),
+          h("td", { class: "r num", text: K.fmt.yen(c.cost) }),
+          h("td", { class: "r" }, c.costRate == null ? h("span", { class: "chip", text: "売価未設定" })
+            : h("span", { class: "rcp-trate" }, gauge(c.costRate), h("span", { class: "num " + rateClass(c.costRate), style: { color: "var(--" + rateClass(c.costRate) + ")" }, text: K.fmt.pct(c.costRate) }))),
+          h("td", { class: "r num", text: c.profit == null ? "—" : K.fmt.yen(c.profit) })));
+      });
     });
     const tbl = h("div", { class: "rcp-tbl-wrap tblwrap" },
       h("table", { class: "tbl rcp-tbl" },
@@ -715,7 +767,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
           h("th", { class: "r", text: "1人前原価" }), h("th", { class: "r", text: "原価率（目標 " + K.fmt.pct(t) + "）" }), h("th", { class: "r", text: "粗利" }))),
         tbody));
 
-    listHost.append(h("div", { class: "rcp-count" }, h("span", { class: "num", text: String(rows.length) }), "件を表示"), cards, tbl);
+    listHost.append(h("div", { class: "rcp-count" }, h("span", { class: "num", text: String(rows.length) }), "件を表示"), cardWrap, tbl);
   }
 
   /* ---------- 詳細（厨房で見る用） ---------- */
@@ -875,7 +927,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     let pane = (() => { try { return localStorage.getItem("kitchen-ledger-rcp-pane") === "steps" ? "steps" : "ingr"; } catch (e) { return "ingr"; } })();
     const paneIngr = h("div", { class: "rcp-dpane", role: "tabpanel", "aria-label": "材料" },
       h("div", { class: "rcp-tags" },
-        h("span", { class: "chip", text: r.category || "その他" }),
+        h("span", { class: "chip", text: catOf(r, mine) }),
         mine ? (c.costRate != null ? h("span", { class: "chip num", text: "原価率 " + K.fmt.pct(c.costRate) }) : null) : rateChip(c.costRate),
         st ? h("span", { class: "chip warn", text: "原価更新あり" }) : null,
         mine ? (r.tags || []).map((tg) => h("span", { class: "chip rcp-tag", text: "#" + tg })) : null,
@@ -999,7 +1051,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     const c = calc(r.lines, r.portions, r.price, true);
     const lines = (r.lines || []).map((l) => { const it = item(l.itemId); return Object.assign({}, l, { itemId: it ? it.id : null, unitCost: it ? n(it.cost) : n(l.unitCost) }); });
     const data = {
-      name: r.name || "", category: CATS.includes(r.category) ? r.category : "その他",
+      name: r.name || "", category: shopCats().includes(catOf(r, true)) ? catOf(r, true) : "その他",
       portions: Math.max(1, Math.round(n(r.portions)) || 1), price: Math.max(0, Math.round(n(r.price))), lines,
       cost: c.cost, costRate: c.costRate,
       steps: normSteps(r.steps), allergens: (r.allergens || []).slice(), notes: r.notes || "",
@@ -1022,7 +1074,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     const ro = store.ro();
     const d = {
       name: src ? src.name || "" : "",
-      category: src && store.cats.includes(src.category) ? src.category : (cat !== "すべて" && store.cats.includes(cat) ? cat : (mine ? "賄い" : "主菜")),
+      category: src ? catOf(src, mine) : (cat !== "すべて" && store.cats.includes(cat) ? cat : (mine ? "賄い" : (shopCats().includes("メイン") ? "メイン" : shopCats()[0]))),
       tags: src && Array.isArray(src.tags) ? src.tags.slice() : [],
       portions: src ? Math.max(1, n(src.portions) || 1) : 1,
       price: src ? n(src.price) : 0,
@@ -1123,7 +1175,19 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
 
     const nameInp = K.input({ value: d.name, placeholder: "例：鶏の唐揚げ定食", onInput: (e) => { d.name = e.target.value; } });
     const tagInp = mine ? K.input({ value: d.tags.map((x) => "#" + x).join(" "), placeholder: "例：#魚 #時短 #作り置き", "aria-label": "タグ" }) : null;
-    const catSel = K.select(mine ? MY_CATS.concat(CATS) : CATS, d.category, { onChange: (e) => { d.category = e.target.value; } });
+    const catSel = K.select(store.cats, d.category, { onChange: (e) => { d.category = e.target.value; } });
+    // カテゴリの編集（名前変更・削除）に追従：選択肢を作り直す
+    const offCats = K.on("categories", (ev) => {
+      if (!catSel.isConnected) { offCats(); return; }
+      if (!ev || ev.kind !== "recipe") return;
+      const ren = (ev.renamed || []).find((x) => x.from === d.category);
+      if (ren) d.category = ren.to;
+      else if ((ev.removed || []).includes(d.category)) d.category = "その他";
+      catSel.textContent = "";
+      store.cats.forEach((c) => catSel.appendChild(h("option", { value: c, text: c })));
+      if (!store.cats.includes(d.category)) d.category = "その他";
+      catSel.value = d.category;
+    });
     const porInp = K.input({ type: "number", value: d.portionsRaw, min: 1, step: "1", inputmode: "numeric", class: "inp num", onInput: (e) => {
       d.portionsRaw = e.target.value; d.portions = portionsVal(); updateCalc(); } });
     const priceInp = K.input({ type: "number", value: d.priceRaw, min: 0, step: "1", inputmode: "numeric", placeholder: "例：980", class: "inp num", onInput: (e) => {
@@ -1526,7 +1590,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
             h("span", { class: "rcp-tthumb" }, ph ? photoImg(ph, "") : h("span", { class: "rcp-ph-none" })),
             h("span", { class: "rcp-pick-n", text: e.r.name || "（名前なし）" }),
             h("span", { class: "chip", text: e.store === SHOP ? "店" : "マイ" }),
-            h("span", { class: "chip", text: e.r.category || "その他" })));
+            h("span", { class: "chip", text: catOf(e.r, e.store === MINE) })));
         });
       }
       // レシピタブを開いていなくても一覧が取れるよう、このシートの間だけ購読
@@ -1563,6 +1627,45 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
     });
   }
   K.provide("recipe.log", { label: "レシピの改訂メモに追加", icon: "book", order: 30, handle: handleRecipeLog });
+
+  /* ---------- カテゴリの名前変更・削除を自分のレシピへ反映（v3.3） ---------- */
+  let catApplying = false;
+  K.on("categories", async (ev) => {
+    if (!ev || ev.kind !== "recipe" || catApplying) return;
+    const ren = new Map((ev.renamed || []).map((x) => [x.from, x.to]));
+    const rem = new Set(ev.removed || []);
+    if (!ren.size && !rem.size) { renderList(); return; }
+    catApplying = true;
+    const next = (r) => {
+      let c = String(r.category || "").trim();
+      if (c === "主菜") c = "メイン";
+      if (ren.has(c)) return ren.get(c);
+      if (rem.has(c)) return "その他";
+      return null;
+    };
+    let nShop = 0, nMine = 0, failed = 0;
+    try {
+      if (!K.readOnly()) {
+        for (const r of SHOP.list().slice()) {
+          const to = next(r);
+          if (to == null || to === r.category) continue;
+          try { await SHOP.patch(r.id, { category: to, updatedAt: new Date().toISOString() }); nShop++; } catch (e) { failed++; }
+        }
+      }
+      for (const r of MINE.list().slice()) {
+        const to = next(r);
+        if (to == null || to === r.category) continue;
+        try { await MINE.patch(r.id, { category: to, updatedAt: new Date().toISOString() }); nMine++; } catch (e) { failed++; }
+      }
+      if (nShop || nMine) K.toast("カテゴリの変更をレシピ " + (nShop + nMine) + "件に反映しました" + (nMine ? "（マイレシピ " + nMine + "件を含む）" : ""), "ok");
+      if (failed) K.toast(failed + "件のレシピに反映できませんでした", "bad");
+    } finally { catApplying = false; renderList(); }
+  });
+  function openCatEdit() {
+    const counts = {};
+    SHOP.list().forEach((r) => { const c = catOf(r, false); counts[c] = (counts[c] || 0) + 1; });
+    K.editCategories("recipe", { counts });
+  }
 
   /* ---------- 店のレシピ・食材の購読（読み込み時に1回だけ）→ ナビのバッジはタブを開かなくても更新 ---------- */
   const updateBadge = () => K.badge("recipe", recipes.filter((r) => isStale(r)).length, "warn");
@@ -1870,7 +1973,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
             h("span", { class: "rcp-tthumb" }, ph ? photoImg(ph, "") : h("span", { class: "rcp-ph-none" }, K.icon("book"))),
             h("span", { class: "rcp-mp-main" },
               h("span", { class: "rcp-mp-name" }, r.fav ? h("span", { class: "rcp-star", "aria-label": "お気に入り", text: "★ " }) : null, r.name || "（名前なし）"),
-              h("span", { class: "rcp-mp-sub" }, (r.category || "その他") + (r.updatedAt ? "・更新 " + fmtDay(r.updatedAt) : ""))),
+              h("span", { class: "rcp-mp-sub" }, catOf(r, true) + (r.updatedAt ? "・更新 " + fmtDay(r.updatedAt) : ""))),
             K.icon("chev")));
         });
         host.append(list);
@@ -1894,6 +1997,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
       sortHost = h("div", { class: "seg", role: "group", "aria-label": "並べ替え" });
       sumHost = h("div", { class: "sumbar rcp-sumbar", role: "group", "aria-label": "レシピの集計" });
       catHost = h("div", { class: "fchips", role: "group", "aria-label": "カテゴリで絞り込み" });
+      catEditBtn = h("button", { class: "btn ghost rcp-catedit", type: "button", attrs: { "data-write": "" }, disabled: K.readOnly(), onClick: openCatEdit, "aria-label": "カテゴリを編集", title: "カテゴリを編集" }, K.icon("edit"), h("span", { class: "rcp-wide", text: "カテゴリを編集" }));
       tagHost = h("div", { class: "fchips", role: "group", "aria-label": "タグで絞り込み" });
       bandHost = h("div");
       listHost = h("div", { class: "stack", style: { gap: "10px" } });
@@ -1910,7 +2014,7 @@ label.btn.rcp-upload-disabled { opacity: .4; cursor: not-allowed; pointer-events
             sumHost,
             sumLine,
             bandHost,
-            h("div", { class: "rcp-filters rcp-o-cats" }, catHost, tagHost),
+            h("div", { class: "rcp-filters rcp-o-cats" }, h("div", { class: "rcp-catrow" }, catHost, catEditBtn), tagHost),
             h("div", { class: "rcp-tools rcp-o-tools" }, searchInp, sortHost),
             listHost);
         } },
