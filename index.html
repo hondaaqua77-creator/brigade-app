@@ -414,6 +414,9 @@ input, select, textarea { scroll-margin-bottom: 140px; scroll-margin-top: 120px;
 .fx-add { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: var(--r-sm); background: var(--surface); }
 .fx-none { margin: 0; color: var(--muted); font-size: 14px; }
 .fx-welcome { margin-top: 6px; }
+.fx-card.is-focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+#nav .nav-btn, #nav .memo-fab { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+#nav .nav-btn.is-pressing, #nav .memo-fab.is-pressing { transform: scale(.94); transition: transform .5s; }
 .nav-feat { display: none; }
 @media (min-width: 900px) {
   .nav-feat { display: flex; align-items: center; gap: 8px; margin-top: auto; min-height: 44px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: var(--r-sm); background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -551,12 +554,12 @@ body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 <div id="toasts" aria-live="polite"></div>
 <div id="sheets"></div>
 
-<script src="core.js?v=7d5d37ffa6"></script>
-<script src="mod-sales.js?v=7d5d37ffa6"></script>
-<script src="mod-inventory.js?v=7d5d37ffa6"></script>
-<script src="mod-recipe.js?v=7d5d37ffa6"></script>
-<script src="mod-shift.js?v=7d5d37ffa6"></script>
-<script src="mod-mypage.js?v=7d5d37ffa6"></script>
+<script src="core.js?v=eb5581ea34"></script>
+<script src="mod-sales.js?v=eb5581ea34"></script>
+<script src="mod-inventory.js?v=eb5581ea34"></script>
+<script src="mod-recipe.js?v=eb5581ea34"></script>
+<script src="mod-shift.js?v=eb5581ea34"></script>
+<script src="mod-mypage.js?v=eb5581ea34"></script>
 <script>
 /* ===== 独立アプリ（PWA）：オフライン起動・更新通知・ホーム画面への追加案内 — 統括 ===== */
 (function () {

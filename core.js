@@ -431,7 +431,8 @@
     if (msg) K.toast(msg, "ok", prev ? { action: { label: "元に戻す", onClick: () => featSave(prev, "元に戻しました") } } : undefined);
     return true;
   };
-  K.openFeatures = () => {
+  K.openFeatures = (opts) => {
+    const focusKey = opts && opts.focus ? String(opts.focus).split(".")[0] : null;
     const box = h("div", { class: "fx" });
     const draw = () => {
       box.textContent = "";
@@ -462,7 +463,7 @@
           h("b", { text: p.label }), h("span", { text: p.desc }));
       }));
       box.append(
-        h("p", { class: "fx-intro", text: "使わない機能は「外す」、使いたい機能は「＋追加」。押すとすぐ反映されます。外してもデータは消えません。" }),
+        h("p", { class: "fx-intro", text: "使わない機能は「外す」、使いたい機能は「＋追加」。押すとすぐ反映されます。外してもデータは消えません。下のタブを長押ししてもこの画面が開きます。" }),
         h("div", { class: "fx-h" }, h("span", { text: "おすすめのセットから選ぶ" })),
         presets);
       // 追加できる機能（あるときは先に出す）
@@ -481,7 +482,7 @@
       box.appendChild(h("div", { class: "fx-h" }, h("span", { text: "使っている機能" }), h("b", { class: "fx-cnt", text: onCnt + "個" })));
       used.forEach(({ f, subs }) => {
         const m = FEAT_META[f.key] || {};
-        const card = h("div", { class: "fx-card" },
+        const card = h("div", { class: "fx-card" + (focusKey === f.key ? " is-focus" : ""), dataset: { fx: f.key } },
           h("div", { class: "fx-row is-head" },
             h("span", { class: "fx-ico" }, K.icon(m.icon || "box")),
             h("div", { class: "fx-txt" }, h("b", { text: f.label }), h("span", { text: m.where || "" })),
@@ -501,6 +502,7 @@
     draw();
     const off = K.on("features", draw);
     K.sheet({ title: "機能をカスタマイズ", body: box, className: "fx-sheet", onClose: () => { if (typeof off === "function") off(); }, actions: [{ label: "閉じる", kind: "ghost" }] });
+    if (focusKey) setTimeout(() => { const c = box.querySelector('[data-fx="' + focusKey + '"]'); if (c) c.scrollIntoView({ block: "center", behavior: "smooth" }); }, 250);
   };
 
   const STAFF_KEY = "kitchen-ledger-staff";
@@ -1093,6 +1095,28 @@
     });
   }
 
+  /* ---------- 下のタブを長押し → 機能をカスタマイズ ---------- */
+  let lpSuppressUntil = 0;
+  // 長押しで開いた画面が、指を離したときのタップで閉じないようにする
+  ["click", "pointerup", "mouseup", "touchend"].forEach((t) => document.addEventListener(t, (e) => {
+    if (Date.now() < lpSuppressUntil && !(e.target && e.target.closest && e.target.closest("#nav"))) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true));
+  function longPress(el, onLong) {
+    let timer = null, fired = false, sx = 0, sy = 0;
+    const clear = () => { clearTimeout(timer); timer = null; el.classList.remove("is-pressing"); };
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button > 0) return;
+      fired = false; sx = e.clientX; sy = e.clientY;
+      el.classList.add("is-pressing");
+      timer = setTimeout(() => { fired = true; clear(); lpSuppressUntil = Date.now() + 10000; try { navigator.vibrate && navigator.vibrate(15); } catch (x) {} onLong(); }, 550);
+    });
+    el.addEventListener("pointermove", (e) => { if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) clear(); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((t) => el.addEventListener(t, () => { clear(); if (fired) lpSuppressUntil = Math.min(lpSuppressUntil, Date.now() + 400); }));
+    // 長押しのあとの click（タブ移動・メモを開く）は止める
+    el.addEventListener("click", (e) => { if (fired) { e.preventDefault(); e.stopImmediatePropagation(); fired = false; } }, true);
+    el.addEventListener("contextmenu", (e) => { e.preventDefault(); if (!fired) { fired = true; clear(); onLong(); } });
+  }
+
   /* ---------- 起動 ---------- */
   K.boot = async () => {
     modules.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -1101,6 +1125,7 @@
     modules.forEach((m) => {
       const b = h("button", { class: "nav-btn", dataset: { key: m.key }, onClick: () => K.go(m.key) }, h("span", { class: "nav-ico" }, K.icon(m.icon), h("b", { class: "nav-badge", hidden: true })), h("span", { class: "nav-label", text: m.label, dataset: { short: m.short || String(m.label).split("・")[0] } }));
       nav.appendChild(b);
+      longPress(b, () => K.openFeatures({ focus: m.key }));
       views[m.key] = h("section", { class: "view", hidden: true, "aria-label": m.label });
       main.appendChild(views[m.key]);
     });
@@ -1108,6 +1133,7 @@
     const memoBtn = h("button", { class: "memo-fab", id: "memo-fab", "aria-label": "クイックメモ（M）", onClick: () => K.openMemos() },
       h("span", { class: "memo-fab-ico" }, K.icon("plus"), h("b", { class: "nav-badge info", id: "memo-badge", hidden: true })),
       h("span", { class: "memo-fab-label" }, "メモ"), h("kbd", { class: "memo-kbd", text: "M" }));
+    longPress(memoBtn, () => K.openFeatures({ focus: "memo" }));
     const navBtns = nav.querySelectorAll(".nav-btn");
     nav.insertBefore(memoBtn, navBtns[Math.floor(navBtns.length / 2)] || null); // メモは下タブの真ん中
     document.addEventListener("keydown", (e) => {
@@ -1127,6 +1153,13 @@
       if (currentKey && !K.feature(currentKey)) K.go("home");
     };
     K.on("features", applyNav);
+    // はじめの数回だけ「長押しでカスタマイズ」を知らせる
+    setTimeout(() => {
+      let n = 0; try { n = Number(localStorage.getItem("kitchen-ledger-lp-tip") || 0); } catch (e) {}
+      if (n >= 2 || document.querySelector("#sheets .sheet-wrap")) return;
+      try { localStorage.setItem("kitchen-ledger-lp-tip", String(n + 1)); } catch (e) {}
+      K.toast("下のタブを長押しすると、機能の追加・削除ができます", "ok");
+    }, 2500);
     K.on("settings", applyNav);
     applyNav();
     document.getElementById("settings-btn").addEventListener("click", openSettings);
